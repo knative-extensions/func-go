@@ -1,9 +1,6 @@
 approvers:
-- func-writers
-- functions-wg-leads
-- technical-oversight-committee
-
-reviewers:
-- client-writers
-- func-reviewers
-
+- lance
+- lkingland
+- matejvasek
+- salaboy
+- zroubalik
