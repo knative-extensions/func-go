@@ -22,7 +22,7 @@ const (
 
 // Start an intance using a new Service
 func Start(i Handler) error {
-	return New(i).Start()
+	return New(i).Start(context.Background())
 }
 
 // Service exposes a Function Instance as a an HTTP service.
@@ -55,9 +55,9 @@ func New(f Handler) *Service {
 }
 
 // Start serving
-func (s *Service) Start() (err error) {
+func (s *Service) Start(ctx context.Context) (err error) {
 	if i, ok := s.f.(Starter); ok {
-		if err = i.Start(allEnvs()); err != nil {
+		if err = i.Start(ctx, allEnvs()); err != nil {
 			return
 		}
 	}
