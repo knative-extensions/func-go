@@ -6,46 +6,55 @@ import (
 	"net/http"
 )
 
-// Instance of a Function as it exists during the runtime (for Go functions.)
+// Handler is a function instance which can handle a request.
 //
-// Other languages use types of their own lange (see language-specific
-// runtime middleware).
-type Instance interface {
-	// Start instance event hook.
-	Start(map[string]string) error
-
+// This is of course specific to Go functions, with other languages using types
+// of their own (see language-specific runtime middleware), but the conceptual
+// framework is the same.
+type Handler interface {
 	// Handle a request.
 	Handle(context.Context, http.ResponseWriter, *http.Request)
+}
 
+// Starter is an instance which has defined the Start hook
+type Starter interface {
+	// Start instance event hook.
+	Start(map[string]string) error
+}
+
+// Stopper is an instance which has defined the  Stop hook
+type Stopper interface {
 	// Stop instance event hook.
 	Stop(context.Context) error
+}
+
+// ReadinessReporter is an instance which reports its readiness.
+type ReadinessReporter interface {
+	// Ready to be invoked or not.
+	Ready(http.ResponseWriter, *http.Request)
+}
+
+// LivenessReporter is an instance which reports it is alive.
+type LivenessReporter interface {
+	// Alive allows the instance to report it's liveness status.
+	Alive(http.ResponseWriter, *http.Request)
 }
 
 // HandleFunc defines the function signature expected of static Functions.
 type HandleFunc func(context.Context, http.ResponseWriter, *http.Request)
 
-// DefaultInstance is used for simple static function implementations which
+// DefaultHandler is used for simple static function implementations which
 // need only define a single exported function named Handle of type HandleFunc.
-type DefaultInstance struct {
+type DefaultHandler struct {
 	Handler HandleFunc
 }
 
-// Start a default instance.
-func (f DefaultInstance) Start(_ map[string]string) error {
-	return nil
-}
-
 // Handle a request by passing to the handler function.
-func (f DefaultInstance) Handle(ctx context.Context, res http.ResponseWriter, req *http.Request) {
+func (f DefaultHandler) Handle(ctx context.Context, res http.ResponseWriter, req *http.Request) {
 	if f.Handle == nil {
 		f.Handler = defaultHandler
 	}
 	f.Handler(ctx, res, req)
-}
-
-// Stop a default instance.
-func (f DefaultInstance) Stop(_ context.Context) error {
-	return nil
 }
 
 // DefaultHandler is a Handler implementation which simply warns the user that
