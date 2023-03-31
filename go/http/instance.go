@@ -31,13 +31,13 @@ type Stopper interface {
 // ReadinessReporter is an instance which reports its readiness.
 type ReadinessReporter interface {
 	// Ready to be invoked or not.
-	Ready(http.ResponseWriter, *http.Request)
+	Ready(context.Context) (bool, error)
 }
 
 // LivenessReporter is an instance which reports it is alive.
 type LivenessReporter interface {
 	// Alive allows the instance to report it's liveness status.
-	Alive(http.ResponseWriter, *http.Request)
+	Alive(context.Context) (bool, error)
 }
 
 // HandleFunc defines the function signature expected of static Functions.

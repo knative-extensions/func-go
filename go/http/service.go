@@ -88,19 +88,41 @@ func (s *Service) Handle(res http.ResponseWriter, req *http.Request) {
 // Ready handles readiness checks.
 func (s *Service) Ready(res http.ResponseWriter, req *http.Request) {
 	if i, ok := s.f.(ReadinessReporter); ok {
-		i.Ready(res, req)
-	} else {
-		fmt.Fprintf(res, "READY")
+		ready, err := i.Ready(req.Context())
+		if err != nil {
+			e := fmt.Sprintf("error determinging readiness.  %v\n", err)
+			fmt.Fprintf(os.Stderr, e)
+			res.WriteHeader(500)
+			res.Write([]byte(e))
+			return
+		}
+		if !ready {
+			res.WriteHeader(503)
+			res.Write([]byte("Function not yet available"))
+			return
+		}
 	}
+	fmt.Fprintf(res, "READY")
 }
 
 // Alive handles liveness checks.
 func (s *Service) Alive(res http.ResponseWriter, req *http.Request) {
 	if i, ok := s.f.(LivenessReporter); ok {
-		i.Alive(res, req)
-	} else {
-		fmt.Fprintf(res, "ALIVE")
+		alive, err := i.Alive(req.Context())
+		if err != nil {
+			e := fmt.Sprintf("error determinging liveness.  %v\n", err)
+			fmt.Fprintf(os.Stderr, e)
+			res.WriteHeader(500)
+			res.Write([]byte(e))
+			return
+		}
+		if !alive {
+			res.WriteHeader(503)
+			res.Write([]byte("Function not live"))
+			return
+		}
 	}
+	fmt.Fprintf(res, "ALIVE")
 }
 
 func (s *Service) handleRequests() {
@@ -120,10 +142,10 @@ func (s *Service) handleSignals() {
 		for {
 			sig := <-sigs
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
-				log.Printf("Signal %v received. Stopping.", sig)
+				log.Printf("Signal '%v' received. Stopping.", sig)
 				s.Stop()
 			} else {
-				log.Printf("Signal %v ignored.", sig)
+				log.Printf("Signal '%v' ignored.", sig)
 			}
 		}
 	}()
