@@ -21,6 +21,8 @@ const (
 )
 
 // Start an intance using a new Service
+// Note that for CloudEvent Handlers this effectively accepts ANY because
+// the actual type of the handler function is determined later.
 func Start(i Handler) error {
 	return New(i).Start(context.Background())
 }
