@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/cloudevents/sdk-go/v2 v2.12.0
-	github.com/gorilla/mux v1.7.4
+	github.com/go-chi/chi/v5 v5.0.8
 )
 
 require (
