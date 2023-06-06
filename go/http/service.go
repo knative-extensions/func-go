@@ -30,12 +30,12 @@ func Start(i Handler) error {
 // Service exposes a Function Instance as a an HTTP service.
 type Service struct {
 	http.Server
-	f    Handler
 	done chan error
+	f    any
 }
 
-// New Service which service the given instance.
-func New(f Handler) *Service {
+// New Service which serves the given instance.
+func New(f any) *Service {
 	svc := &Service{
 		f:    f,
 		done: make(chan error),
@@ -56,16 +56,23 @@ func New(f Handler) *Service {
 	return svc
 }
 
-// Start serving
+// Start
 func (s *Service) Start(ctx context.Context) (err error) {
+	ee := make(chan error)
 	if i, ok := s.f.(Starter); ok {
-		if err = i.Start(ctx, allEnvs()); err != nil {
-			return
-		}
+		go func() {
+			if err = i.Start(ctx, allEnvs()); err != nil {
+				ee <- err
+			}
+		}()
 	}
 	s.handleRequests()
 	s.handleSignals()
-	return <-s.done
+	select {
+	case err = <-s.done:
+	case err = <-ee:
+	}
+	return
 }
 
 // Stop serving
@@ -87,7 +94,12 @@ func (s *Service) Stop() {
 
 // Handle requests for the instance
 func (s *Service) Handle(res http.ResponseWriter, req *http.Request) {
-	s.f.Handle(req.Context(), res, req)
+	if i, ok := s.f.(Handler); ok {
+		i.Handle(req.Context(), res, req)
+	}
+	message := "function does not implement Handle. Nothing to invoke"
+	fmt.Fprintf(os.Stderr, message)
+	res.Write([]byte(message))
 }
 
 // Ready handles readiness checks.
