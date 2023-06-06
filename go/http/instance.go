@@ -51,7 +51,7 @@ type DefaultHandler struct {
 
 // Handle a request by passing to the handler function.
 func (f DefaultHandler) Handle(ctx context.Context, res http.ResponseWriter, req *http.Request) {
-	if f.Handle == nil {
+	if f.Handler == nil {
 		f.Handler = defaultHandler
 	}
 	f.Handler(ctx, res, req)
