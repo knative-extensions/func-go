@@ -15,7 +15,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const Version = "v0.1.1"
+const Version = "v0.2.1"
 
 const DefaultLogLevel = LogDebug
 
@@ -33,7 +33,7 @@ const (
 // Note that for CloudEvent Handlers this effectively accepts ANY because
 // the actual type of the handler function is determined later.
 func Start(f any) error {
-	log.Debug().Msg("func runtime creating funciton instance")
+	log.Debug().Msg("func runtime creating function instance")
 	return New(f).Start(context.Background())
 }
 
@@ -68,7 +68,7 @@ func New(f any) *Service {
 
 // Start
 func (s *Service) Start(ctx context.Context) (err error) {
-	log.Debug().Msg("func runtime starting funciton instance")
+	log.Debug().Msg("func runtime starting function")
 	ee := make(chan error)
 	if i, ok := s.f.(Starter); ok {
 		go func() {
@@ -108,53 +108,56 @@ func (s *Service) Stop() {
 }
 
 // Handle requests for the instance
-func (s *Service) Handle(res http.ResponseWriter, req *http.Request) {
+func (s *Service) Handle(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.f.(Handler); ok {
-		i.Handle(req.Context(), res, req)
+		i.Handle(r.Context(), w, r)
+	} else {
+		message := "function does not implement Handle. Skipping"
+		log.Debug().Msg(message)
+		w.Write([]byte(message))
 	}
-	message := "function does not implement Handle. Nothing to invoke"
-	fmt.Fprintf(os.Stderr, message)
-	res.Write([]byte(message))
 }
 
 // Ready handles readiness checks.
-func (s *Service) Ready(res http.ResponseWriter, req *http.Request) {
+func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.f.(ReadinessReporter); ok {
-		ready, err := i.Ready(req.Context())
+		ready, err := i.Ready(r.Context())
 		if err != nil {
-			e := fmt.Sprintf("error determinging readiness.  %v\n", err)
-			fmt.Fprintf(os.Stderr, e)
-			res.WriteHeader(500)
-			res.Write([]byte(e))
+			message := "error checking readiness"
+			log.Debug().Err(err).Msg(message)
+			w.WriteHeader(500)
+			w.Write([]byte(message + ". " + err.Error()))
 			return
 		}
 		if !ready {
-			res.WriteHeader(503)
-			res.Write([]byte("Function not yet available"))
+			message := "function not yet available"
+			log.Debug().Msg(message)
+			w.WriteHeader(503)
+			w.Write([]byte(message))
 			return
 		}
 	}
-	fmt.Fprintf(res, "READY")
+	fmt.Fprintf(w, "READY")
 }
 
 // Alive handles liveness checks.
-func (s *Service) Alive(res http.ResponseWriter, req *http.Request) {
+func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.f.(LivenessReporter); ok {
-		alive, err := i.Alive(req.Context())
+		alive, err := i.Alive(r.Context())
 		if err != nil {
 			e := fmt.Sprintf("error determinging liveness.  %v\n", err)
 			fmt.Fprintf(os.Stderr, e)
-			res.WriteHeader(500)
-			res.Write([]byte(e))
+			w.WriteHeader(500)
+			w.Write([]byte(e))
 			return
 		}
 		if !alive {
-			res.WriteHeader(503)
-			res.Write([]byte("Function not live"))
+			w.WriteHeader(503)
+			w.Write([]byte("Function not live"))
 			return
 		}
 	}
-	fmt.Fprintf(res, "ALIVE")
+	fmt.Fprintf(w, "ALIVE")
 }
 
 func (s *Service) handleRequests() {
