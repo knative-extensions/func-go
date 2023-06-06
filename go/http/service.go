@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+const Version = "v0.1.1"
+
+func init() {
+	fmt.Printf("func-runtimes-go@%v\n", Version)
+}
+
 const (
 	DefaultServicePort    = "8080"
 	ServerShutdownTimeout = 30 * time.Second
