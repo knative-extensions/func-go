@@ -6,18 +6,21 @@ package http
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 const Version = "v0.1.1"
 
+const DefaultLogLevel = LogDebug
+
 func init() {
-	fmt.Printf("func-runtimes-go@%v\n", Version)
+	log.Debug().Str("version", Version).Msg("func runtime initializing")
 }
 
 const (
@@ -29,8 +32,9 @@ const (
 // Start an intance using a new Service
 // Note that for CloudEvent Handlers this effectively accepts ANY because
 // the actual type of the handler function is determined later.
-func Start(i Handler) error {
-	return New(i).Start(context.Background())
+func Start(f any) error {
+	log.Debug().Msg("func runtime creating funciton instance")
+	return New(f).Start(context.Background())
 }
 
 // Service exposes a Function Instance as a an HTTP service.
@@ -64,6 +68,7 @@ func New(f any) *Service {
 
 // Start
 func (s *Service) Start(ctx context.Context) (err error) {
+	log.Debug().Msg("func runtime starting funciton instance")
 	ee := make(chan error)
 	if i, ok := s.f.(Starter); ok {
 		go func() {
@@ -71,12 +76,16 @@ func (s *Service) Start(ctx context.Context) (err error) {
 				ee <- err
 			}
 		}()
+	} else {
+		log.Debug().Msg("function does not implement Start. Skipping")
 	}
 	s.handleRequests()
 	s.handleSignals()
 	select {
 	case err = <-s.done:
+		log.Debug().Err(err).Msg("func runtime received done notification")
 	case err = <-ee:
+		log.Debug().Err(err).Msg("func runtime received start error notification")
 	}
 	return
 }
@@ -86,7 +95,7 @@ func (s *Service) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), ServerShutdownTimeout)
 	defer cancel()
 	if err := s.Shutdown(ctx); err != nil {
-		log.Printf("warning: error during shutdown. %s", err)
+		log.Warn().Err(err).Msg("error during shutdown")
 	}
 	ctx, cancel = context.WithTimeout(context.Background(), InstanceStopTimeout)
 	defer cancel()
