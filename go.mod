@@ -1,4 +1,4 @@
-module github.com/lkingland/func-runtimes/go
+module github.com/lkingland/func-runtime-go
 
 go 1.19
 
