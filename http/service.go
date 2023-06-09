@@ -5,26 +5,22 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/rs/zerolog/log"
 )
 
-const Version = "v0.2.1"
-
 const DefaultLogLevel = LogDebug
 
-func init() {
-	log.Debug().Str("version", Version).Msg("func runtime initializing")
-}
-
 const (
-	DefaultServicePort    = "8080"
 	ServerShutdownTimeout = 30 * time.Second
 	InstanceStopTimeout   = 30 * time.Second
 )
@@ -40,17 +36,41 @@ func Start(f any) error {
 // Service exposes a Function Instance as a an HTTP service.
 type Service struct {
 	http.Server
-	done chan error
+	stop chan error
 	f    any
+	addr net.Addr
+}
+
+// listen on LISTEN_ADDRESS or PORT.
+// Both may not be defined.
+// If port is defined only, the default is to listen on 127.0.0.1
+// The OS chooses the port if it is empty or zero.
+func (s *Service) listen() (lis net.Listener, err error) {
+	addr := os.Getenv("LISTEN_ADDRESS")
+	port := os.Getenv("PORT")
+	if addr != "" && port != "" {
+		return nil, errors.New("Only one of LISTEN_ADRESS and PORT may be defined")
+	}
+	if port != "" {
+		addr = "127.0.0.1:" + port
+	}
+	if lis, err = net.Listen("tcp", addr); err != nil {
+		return
+	}
+	s.addr = lis.Addr()
+	return
+}
+
+func (s *Service) Addr() net.Addr {
+	return s.addr
 }
 
 // New Service which serves the given instance.
 func New(f any) *Service {
 	svc := &Service{
 		f:    f,
-		done: make(chan error),
+		stop: make(chan error),
 		Server: http.Server{
-			Addr:              ":" + port(),
 			ReadTimeout:       30 * time.Second,
 			WriteTimeout:      30 * time.Second,
 			IdleTimeout:       30 * time.Second,
@@ -67,44 +87,34 @@ func New(f any) *Service {
 }
 
 // Start
+// Will stop when the context is canceled, a runtime error is encountered,
+// or an os interrupt or kill signal is received.
 func (s *Service) Start(ctx context.Context) (err error) {
-	log.Debug().Msg("func runtime starting function")
-	ee := make(chan error)
-	if i, ok := s.f.(Starter); ok {
-		go func() {
-			if err = i.Start(ctx, allEnvs()); err != nil {
-				ee <- err
-			}
-		}()
-	} else {
-		log.Debug().Msg("function does not implement Start. Skipping")
-	}
-	s.handleRequests()
+	log.Debug().Msg("function starting")
+
+	// Start the function instance in a separate routine, sending any
+	// runtime errors on s.stop.
+	s.startInstance(ctx)
+
+	// Start listening for interrupt and kill signals in a separate routine,
+	// sending a nil error on the s.stop channel if either are received.
 	s.handleSignals()
+
+	// Start the HTTP listener in a separate routine, sending any runtime errors
+	// on s.stop.
+	s.handleRequests()
+
+	log.Debug().Msg("waiting for stop signals or errors")
+	// Wait for either a context cancellation or a signal on the stop channel.
 	select {
-	case err = <-s.done:
-		log.Debug().Err(err).Msg("func runtime received done notification")
-	case err = <-ee:
-		log.Debug().Err(err).Msg("func runtime received start error notification")
+	case err = <-s.stop:
+		if err != nil {
+			log.Error().Err(err).Msg("function error")
+		}
+	case <-ctx.Done():
+		log.Debug().Msg("function canceled")
 	}
-	return
-}
-
-// Stop serving
-func (s *Service) Stop() {
-	ctx, cancel := context.WithTimeout(context.Background(), ServerShutdownTimeout)
-	defer cancel()
-	if err := s.Shutdown(ctx); err != nil {
-		log.Warn().Err(err).Msg("error during shutdown")
-	}
-	ctx, cancel = context.WithTimeout(context.Background(), InstanceStopTimeout)
-	defer cancel()
-
-	if i, ok := s.f.(Stopper); ok {
-		s.done <- i.Stop(ctx)
-	} else {
-		s.done <- nil
-	}
+	return s.shutdown(err)
 }
 
 // Handle requests for the instance
@@ -160,43 +170,94 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "ALIVE")
 }
 
+func (s *Service) startInstance(ctx context.Context) {
+	if i, ok := s.f.(Starter); ok {
+		go func() {
+			if err := i.Start(ctx, allEnvs()); err != nil {
+				s.stop <- err
+			}
+		}()
+	} else {
+		log.Debug().Msg("function does not implement Start. Skipping")
+	}
+}
+
 func (s *Service) handleRequests() {
+	lis, err := s.listen()
+	if err != nil {
+		s.stop <- err
+		return
+	}
+	log.Info().Any("address", lis.Addr()).Msg("listening")
+
 	go func() {
-		if err := s.Server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Printf("http server exited with unexpected error: %v", err)
-			s.done <- err
+		if err = s.Server.Serve(lis); err != http.ErrServerClosed {
+			log.Error().Err(err).Msg("http server exited with unexpected error")
+			s.stop <- err
 		}
 	}()
-	log.Printf("Listening on port %v", port())
 }
 
 func (s *Service) handleSignals() {
-	sigs := make(chan os.Signal, 1)
+	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs)
 	go func() {
 		for {
 			sig := <-sigs
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
-				log.Printf("Signal '%v' received. Stopping.", sig)
-				s.Stop()
+				log.Debug().Any("signal", sig).Msg("signal received")
+				s.stop <- nil
 			} else {
-				log.Printf("Signal '%v' ignored.", sig)
+				log.Debug().Any("signal", sig).Msg("signal ignored")
 			}
 		}
 	}()
 }
 
-func port() (p string) {
-	if os.Getenv("PORT") == "" {
-		return DefaultServicePort
-	}
-	return os.Getenv("PORT")
-}
-
 func allEnvs() (envs map[string]string) {
 	envs = make(map[string]string, len(os.Environ()))
 	for _, e := range os.Environ() {
-		envs[e] = os.Getenv(e)
+		pair := strings.SplitN(e, "=", 2)
+		envs[pair[0]] = pair[1]
+	}
+	return
+}
+
+// shutdown is invoked when the stop channel receives a message and attempts to
+// gracefully cease execution.
+// Passed in is the message received on the stop channel, wich is either an
+// error in the case of a runtime error, or nil in the case of a context
+// cancellation or sigint/sigkill.
+func (s *Service) shutdown(sourceErr error) (err error) {
+	log.Debug().Msg("function stopping")
+	var runtimeErr, instanceErr error
+
+	// Start a graceful shutdown of the HTTP server
+	ctx, cancel := context.WithTimeout(context.Background(), ServerShutdownTimeout)
+	defer cancel()
+	runtimeErr = s.Shutdown(ctx)
+
+	//  Start a graceful shutdown of the Function instance
+	if i, ok := s.f.(Stopper); ok {
+		ctx, cancel = context.WithTimeout(context.Background(), InstanceStopTimeout)
+		defer cancel()
+		instanceErr = i.Stop(ctx)
+	}
+
+	return collapseErrors("shutdown error", sourceErr, instanceErr, runtimeErr)
+}
+
+// collapseErrors returns the first non-nil error which it is passed,
+// printing the rest to log with the given prefix.
+func collapseErrors(msg string, ee ...error) (err error) {
+	for _, e := range ee {
+		if e != nil {
+			if err == nil {
+				err = e
+			} else {
+				log.Error().Err(e).Msg(msg)
+			}
+		}
 	}
 	return
 }
