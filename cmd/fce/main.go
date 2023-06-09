@@ -7,7 +7,7 @@ import (
 
 	"github.com/cloudevents/sdk-go/v2/event"
 
-	ce "github.com/lkingland/func-runtimes/go/cloudevents"
+	ce "github.com/lkingland/func-runtime-go/cloudevents"
 )
 
 // Main illustrates how scaffolding works to wrap a user's function.
