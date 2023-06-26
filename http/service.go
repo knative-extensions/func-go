@@ -37,7 +37,6 @@ type Service struct {
 	http.Server
 	stop chan error
 	f    any
-	addr net.Addr
 }
 
 // listen on ADDRESS:PORT.
@@ -45,6 +44,14 @@ type Service struct {
 // interface for security reasons.
 // The OS chooses the port if it is empty or zero.
 func (s *Service) listen() (lis net.Listener, err error) {
+	if lis, err = net.Listen("tcp", listenAddress()); err != nil {
+		return
+	}
+	log.Info().Any("address", listenAddress()).Msg("listening")
+	return
+}
+
+func listenAddress() string {
 	addr := os.Getenv("ADDRESS")
 	port := os.Getenv("PORT")
 	if addr == "" {
@@ -53,16 +60,7 @@ func (s *Service) listen() (lis net.Listener, err error) {
 	if port == "" {
 		port = "8080"
 	}
-	listen_address := addr + ":" + port
-	if lis, err = net.Listen("tcp", listen_address); err != nil {
-		return
-	}
-	s.addr = lis.Addr()
-	return
-}
-
-func (s *Service) Addr() net.Addr {
-	return s.addr
+	return addr + ":" + port
 }
 
 // New Service which serves the given instance.
@@ -130,7 +128,6 @@ func (s *Service) Handle(w http.ResponseWriter, r *http.Request) {
 
 // Ready handles readiness checks.
 func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
-	log.Debug().Msg("responding to readiness probe")
 	if i, ok := s.f.(ReadinessReporter); ok {
 		ready, err := i.Ready(r.Context())
 		if err != nil {
@@ -148,13 +145,11 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	log.Debug().Msg("function does not implement readiness reporter.  Defaulting to reporting ready")
 	fmt.Fprintf(w, "READY")
 }
 
 // Alive handles liveness checks.
 func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
-	log.Debug().Msg("responding to liveness probe")
 	if i, ok := s.f.(LivenessReporter); ok {
 		alive, err := i.Alive(r.Context())
 		if err != nil {
@@ -172,7 +167,6 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	log.Debug().Msg("function does not implement liveness reporter.  Defaulting to reporting alive")
 	fmt.Fprintf(w, "ALIVE")
 }
 
@@ -194,7 +188,6 @@ func (s *Service) handleRequests() {
 		s.stop <- err
 		return
 	}
-	log.Info().Any("address", lis.Addr()).Msg("listening")
 
 	go func() {
 		if err = s.Server.Serve(lis); err != http.ErrServerClosed {
