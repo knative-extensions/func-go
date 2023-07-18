@@ -206,6 +206,9 @@ func (s *Service) handleSignals() {
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				log.Debug().Any("signal", sig).Msg("signal received")
 				s.stop <- nil
+			} else if sig == syscall.SIGURG {
+				// SIGURG is ignored
+				// See https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md
 			} else {
 				log.Debug().Any("signal", sig).Msg("signal ignored")
 			}
