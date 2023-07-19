@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lkingland/func-runtime-go/http/mock"
+	"github.com/knative-sandbox/func-go/http/mock"
 )
 
 // TestStart ensures that the Start method of a function is invoked
