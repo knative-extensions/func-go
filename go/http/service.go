@@ -73,7 +73,9 @@ func (s *Service) Stop() {
 	if err := s.Shutdown(ctx); err != nil {
 		log.Printf("warning: error during shutdown. %s", err)
 	}
-	ctx, _ = context.WithTimeout(context.Background(), InstanceStopTimeout)
+	ctx, cancel = context.WithTimeout(context.Background(), InstanceStopTimeout)
+	defer cancel()
+
 	if i, ok := s.f.(Stopper); ok {
 		s.done <- i.Stop(ctx)
 	}
