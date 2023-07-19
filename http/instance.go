@@ -2,8 +2,9 @@ package http
 
 import (
 	"context"
-	"log"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 )
 
 // Handler is a function instance which can handle a request.
@@ -60,6 +61,6 @@ func (f DefaultHandler) Handle(ctx context.Context, res http.ResponseWriter, req
 // DefaultHandler is a Handler implementation which simply warns the user that
 // the default handler instance was not properly initialized.
 var defaultHandler = func(_ context.Context, res http.ResponseWriter, req *http.Request) {
-	log.Printf("Handler was not instantiated with a handle function.")
+	log.Warn().Msg("no Handle method found")
 	http.NotFound(res, req)
 }
