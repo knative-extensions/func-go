@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	i := fn.DefaultInstance{Handler: Handle}
+	i := fn.DefaultHandler{Handler: Handle}
 	err := fn.Start(i)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
