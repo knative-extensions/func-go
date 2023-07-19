@@ -21,19 +21,19 @@ const (
 )
 
 // Start an intance using a new Service
-func Start(i Instance) error {
+func Start(i Handler) error {
 	return New(i).Start()
 }
 
 // Service exposes a Function Instance as a an HTTP service.
 type Service struct {
 	http.Server
-	f    Instance
+	f    Handler
 	done chan error
 }
 
 // New Service which service the given instance.
-func New(f Instance) *Service {
+func New(f Handler) *Service {
 	svc := &Service{
 		f:    f,
 		done: make(chan error),
@@ -56,8 +56,10 @@ func New(f Instance) *Service {
 
 // Start serving
 func (s *Service) Start() (err error) {
-	if err = s.f.Start(allEnvs()); err != nil {
-		return
+	if i, ok := s.f.(Starter); ok {
+		if err = i.Start(allEnvs()); err != nil {
+			return
+		}
 	}
 	s.handleRequests()
 	s.handleSignals()
@@ -72,7 +74,9 @@ func (s *Service) Stop() {
 		log.Printf("warning: error during shutdown. %s", err)
 	}
 	ctx, _ = context.WithTimeout(context.Background(), InstanceStopTimeout)
-	s.done <- s.f.Stop(ctx)
+	if i, ok := s.f.(Stopper); ok {
+		s.done <- i.Stop(ctx)
+	}
 }
 
 // Handle requests for the instance
@@ -83,12 +87,20 @@ func (s *Service) Handle(res http.ResponseWriter, req *http.Request) {
 
 // Ready handles readiness checks.
 func (s *Service) Ready(res http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(res, "OK")
+	if i, ok := s.f.(ReadinessReporter); ok {
+		i.Ready(res, req)
+	} else {
+		fmt.Fprintf(res, "READY")
+	}
 }
 
 // Alive handles liveness checks.
 func (s *Service) Alive(res http.ResponseWriter, req *http.Request) {
-	fmt.Fprintf(res, "OK")
+	if i, ok := s.f.(LivenessReporter); ok {
+		i.Alive(res, req)
+	} else {
+		fmt.Fprintf(res, "ALIVE")
+	}
 }
 
 func (s *Service) handleRequests() {
