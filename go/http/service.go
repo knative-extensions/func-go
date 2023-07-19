@@ -78,6 +78,8 @@ func (s *Service) Stop() {
 
 	if i, ok := s.f.(Stopper); ok {
 		s.done <- i.Stop(ctx)
+	} else {
+		s.done <- nil
 	}
 }
 
