@@ -5,7 +5,6 @@ package http
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -41,20 +40,21 @@ type Service struct {
 	addr net.Addr
 }
 
-// listen on LISTEN_ADDRESS or PORT.
-// Both may not be defined.
-// If port is defined only, the default is to listen on 127.0.0.1
+// listen on ADDRESS:PORT.
+// If port is defined only, the default is to listen on the 127.0.0.1 loopback
+// interface for security reasons.
 // The OS chooses the port if it is empty or zero.
 func (s *Service) listen() (lis net.Listener, err error) {
-	addr := os.Getenv("LISTEN_ADDRESS")
+	addr := os.Getenv("ADDRESS")
 	port := os.Getenv("PORT")
-	if addr != "" && port != "" {
-		return nil, errors.New("Only one of LISTEN_ADRESS and PORT may be defined")
+	if addr == "" {
+		addr = "127.0.0.1"
 	}
-	if port != "" {
-		addr = "127.0.0.1:" + port
+	if port == "" {
+		port = "8080"
 	}
-	if lis, err = net.Listen("tcp", addr); err != nil {
+	listen_address := addr + ":" + port
+	if lis, err = net.Listen("tcp", listen_address); err != nil {
 		return
 	}
 	s.addr = lis.Addr()
