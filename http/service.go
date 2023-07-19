@@ -130,6 +130,7 @@ func (s *Service) Handle(w http.ResponseWriter, r *http.Request) {
 
 // Ready handles readiness checks.
 func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
+	log.Debug().Msg("responding to readiness probe")
 	if i, ok := s.f.(ReadinessReporter); ok {
 		ready, err := i.Ready(r.Context())
 		if err != nil {
@@ -147,26 +148,31 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	log.Debug().Msg("function does not implement readiness reporter.  Defaulting to reporting ready")
 	fmt.Fprintf(w, "READY")
 }
 
 // Alive handles liveness checks.
 func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
+	log.Debug().Msg("responding to liveness probe")
 	if i, ok := s.f.(LivenessReporter); ok {
 		alive, err := i.Alive(r.Context())
 		if err != nil {
-			e := fmt.Sprintf("error determinging liveness.  %v\n", err)
-			fmt.Fprintf(os.Stderr, e)
+			message := "error checking liveness"
+			log.Err(err).Msg(message)
 			w.WriteHeader(500)
-			w.Write([]byte(e))
+			w.Write([]byte(message + ". " + err.Error()))
 			return
 		}
 		if !alive {
+			message := "function not ready"
+			log.Debug().Msg(message)
 			w.WriteHeader(503)
-			w.Write([]byte("Function not live"))
+			w.Write([]byte(message))
 			return
 		}
 	}
+	log.Debug().Msg("function does not implement liveness reporter.  Defaulting to reporting alive")
 	fmt.Fprintf(w, "ALIVE")
 }
 
