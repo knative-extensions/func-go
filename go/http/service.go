@@ -87,7 +87,6 @@ func (s *Service) Stop() {
 
 // Handle requests for the instance
 func (s *Service) Handle(res http.ResponseWriter, req *http.Request) {
-	log.Println("Service.Handle")
 	s.f.Handle(req.Context(), res, req)
 }
 
