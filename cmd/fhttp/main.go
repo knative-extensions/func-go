@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 
-	fn "github.com/lkingland/func-runtime-go/http"
+	fn "github.com/knative-sandbox/func-go/http"
 )
 
 // Main illustrates how scaffolding works to wrap a user's function.
