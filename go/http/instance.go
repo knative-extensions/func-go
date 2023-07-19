@@ -19,7 +19,7 @@ type Handler interface {
 // Starter is an instance which has defined the Start hook
 type Starter interface {
 	// Start instance event hook.
-	Start(map[string]string) error
+	Start(context.Context, map[string]string) error
 }
 
 // Stopper is an instance which has defined the  Stop hook
