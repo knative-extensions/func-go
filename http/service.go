@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -206,8 +207,8 @@ func (s *Service) handleSignals() {
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				log.Debug().Any("signal", sig).Msg("signal received")
 				s.stop <- nil
-			} else if sig == syscall.SIGURG {
-				// SIGURG is ignored
+			} else if runtime.GOOS == "linux" && sig == syscall.Signal(0x17) {
+				// Ignore SIGURG; signal 23 (0x17)
 				// See https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md
 			} else {
 				log.Debug().Any("signal", sig).Msg("signal ignored")
