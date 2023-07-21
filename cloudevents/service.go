@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"reflect"
+	"runtime"
 	"strconv"
 	"syscall"
 	"time"
@@ -200,8 +201,8 @@ func (s *Service) handleSignals() {
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				log.Printf("Signal '%v' received. Stopping.", sig)
 				s.Stop()
-			} else if sig == syscall.SIGURG {
-				// SIGURG is ignored
+			} else if runtime.GOOS == "linux" && sig == syscall.Signal(0x17) {
+				// Ignore SIGURG; signal 23 (0x17)
 				// See https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md
 			} else {
 				log.Printf("Signal '%v' ignored.", sig)
