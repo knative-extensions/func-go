@@ -4,6 +4,7 @@
 package http
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
@@ -93,7 +94,9 @@ func (s *Service) Start(ctx context.Context) (err error) {
 
 	// Start the function instance in a separate routine, sending any
 	// runtime errors on s.stop.
-	s.startInstance(ctx)
+	if err = s.startInstance(ctx); err != nil {
+		return
+	}
 
 	// Start listening for interrupt and kill signals in a separate routine,
 	// sending a nil error on the s.stop channel if either are received.
@@ -123,7 +126,7 @@ func (s *Service) Handle(w http.ResponseWriter, r *http.Request) {
 	} else {
 		message := "function does not implement Handle. Skipping"
 		log.Debug().Msg(message)
-		w.Write([]byte(message))
+		_, _ = w.Write([]byte(message))
 	}
 }
 
@@ -135,14 +138,14 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 			message := "error checking readiness"
 			log.Debug().Err(err).Msg(message)
 			w.WriteHeader(500)
-			w.Write([]byte(message + ". " + err.Error()))
+			_, _ = w.Write([]byte(message + ". " + err.Error()))
 			return
 		}
 		if !ready {
 			message := "function not yet available"
 			log.Debug().Msg(message)
 			w.WriteHeader(503)
-			w.Write([]byte(message))
+			_, _ = w.Write([]byte(message))
 			return
 		}
 	}
@@ -157,30 +160,35 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 			message := "error checking liveness"
 			log.Err(err).Msg(message)
 			w.WriteHeader(500)
-			w.Write([]byte(message + ". " + err.Error()))
+			_, _ = w.Write([]byte(message + ". " + err.Error()))
 			return
 		}
 		if !alive {
 			message := "function not ready"
 			log.Debug().Msg(message)
 			w.WriteHeader(503)
-			w.Write([]byte(message))
+			_, _ = w.Write([]byte(message))
 			return
 		}
 	}
 	fmt.Fprintf(w, "ALIVE")
 }
 
-func (s *Service) startInstance(ctx context.Context) {
+func (s *Service) startInstance(ctx context.Context) error {
 	if i, ok := s.f.(Starter); ok {
+		cfg, err := newCfg()
+		if err != nil {
+			return err
+		}
 		go func() {
-			if err := i.Start(ctx, allEnvs()); err != nil {
+			if err := i.Start(ctx, cfg); err != nil {
 				s.stop <- err
 			}
 		}()
 	} else {
 		log.Debug().Msg("function does not implement Start. Skipping")
 	}
+	return nil
 }
 
 func (s *Service) handleRequests() {
@@ -217,11 +225,45 @@ func (s *Service) handleSignals() {
 	}()
 }
 
-func allEnvs() (envs map[string]string) {
-	envs = make(map[string]string, len(os.Environ()))
+// readCfg returns a map representation of ./cfg
+// Empty map is returned if ./cfg does not exist.
+// Error is returned for invalid entries.
+// keys and values are space-trimmed.
+// Quotes are removed from values.
+func readCfg() (map[string]string, error) {
+	cfg := map[string]string{}
+
+	f, err := os.Open("cfg")
+	if err != nil {
+		log.Debug().Msg("no static config")
+		return cfg, nil
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	i := 0
+	for scanner.Scan() {
+		i++
+		line := scanner.Text()
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			return cfg, fmt.Errorf("config line %v invalid: %v", i, line)
+		}
+		cfg[strings.TrimSpace(parts[0])] = strings.Trim(strings.TrimSpace(parts[1]), "\"")
+	}
+	return cfg, scanner.Err()
+}
+
+// newCfg creates a final map of config values built from the static
+// values in `cfg` and all environment variables.
+func newCfg() (cfg map[string]string, err error) {
+	if cfg, err = readCfg(); err != nil {
+		return
+	}
+
 	for _, e := range os.Environ() {
 		pair := strings.SplitN(e, "=", 2)
-		envs[pair[0]] = pair[1]
+		cfg[pair[0]] = pair[1]
 	}
 	return
 }
