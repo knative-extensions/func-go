@@ -7,7 +7,7 @@ import (
 
 	"github.com/cloudevents/sdk-go/v2/event"
 
-	ce "github.com/knative-sandbox/func-go/cloudevents"
+	ce "knative.dev/func-go/cloudevents"
 )
 
 // Main illustrates how scaffolding works to wrap a user's function.
