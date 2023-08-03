@@ -1,4 +1,4 @@
-module github.com/knative-extensions/func-go
+module knative.dev/func-go
 
 go 1.19
 
