@@ -19,7 +19,10 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-const DefaultLogLevel = LogDebug
+const (
+	DefaultLogLevel      = LogDebug
+	DefaultListenAddress = "127.0.0.1:8080"
+)
 
 const (
 	ServerShutdownTimeout = 30 * time.Second
@@ -37,32 +40,9 @@ func Start(f any) error {
 // Service exposes a Function Instance as a an HTTP service.
 type Service struct {
 	http.Server
-	stop chan error
-	f    any
-}
-
-// listen on ADDRESS:PORT.
-// If port is defined only, the default is to listen on the 127.0.0.1 loopback
-// interface for security reasons.
-// The OS chooses the port if it is empty or zero.
-func (s *Service) listen() (lis net.Listener, err error) {
-	if lis, err = net.Listen("tcp", listenAddress()); err != nil {
-		return
-	}
-	log.Info().Any("address", listenAddress()).Msg("listening")
-	return
-}
-
-func listenAddress() string {
-	addr := os.Getenv("ADDRESS")
-	port := os.Getenv("PORT")
-	if addr == "" {
-		addr = "127.0.0.1"
-	}
-	if port == "" {
-		port = "8080"
-	}
-	return addr + ":" + port
+	listener net.Listener
+	stop     chan error
+	f        any
 }
 
 // New Service which serves the given instance.
@@ -83,28 +63,71 @@ func New(f any) *Service {
 	mux.HandleFunc("/health/liveness", svc.Alive)
 	mux.HandleFunc("/", svc.Handle)
 	svc.Server.Handler = mux
+
+	// Print some helpful information about which interfaces the function
+	// is correctly implementing
+	logImplements(f)
+
 	return svc
+}
+
+// log which interfaces the function implements.
+// This could be more verbose for new users:
+func logImplements(f any) {
+	if _, ok := f.(Handler); ok {
+		log.Info().Msg("Function implements Handle")
+	}
+	if _, ok := f.(Starter); ok {
+		log.Info().Msg("Function implements Start")
+	}
+	if _, ok := f.(Stopper); ok {
+		log.Info().Msg("Function implements Stop")
+	}
+	if _, ok := f.(ReadinessReporter); ok {
+		log.Info().Msg("Function implements Ready")
+	}
+	if _, ok := f.(LivenessReporter); ok {
+		log.Info().Msg("Function implements Alive")
+	}
 }
 
 // Start
 // Will stop when the context is canceled, a runtime error is encountered,
 // or an os interrupt or kill signal is received.
+// By default it listens on the default address DefaultListenAddress.
+// This can be modified using the environment variable LISTEN_ADDRESS
 func (s *Service) Start(ctx context.Context) (err error) {
-	log.Debug().Msg("function starting")
+	// Get the listen address
+	// TODO: Currently this is an env var for legacy reasons. Logic should
+	// be moved into the generated mainfiles, and this setting be an optional
+	// functional option WithListenAddress(os.Getenv("LISTEN_ADDRESS"))
+	addr := listenAddress()
+	log.Debug().Str("address", addr).Msg("function starting")
 
-	// Start the function instance in a separate routine, sending any
+	// Listen
+	if s.listener, err = net.Listen("tcp", addr); err != nil {
+		return
+	}
+
+	// Start
+	// Starts the function instance in a separate routine, sending any
 	// runtime errors on s.stop.
 	if err = s.startInstance(ctx); err != nil {
 		return
 	}
 
-	// Start listening for interrupt and kill signals in a separate routine,
-	// sending a nil error on the s.stop channel if either are received.
+	// Wait for signals
+	// Interrupts and Kill signals
+	// sending a message on the s.stop channel if either are received.
 	s.handleSignals()
 
-	// Start the HTTP listener in a separate routine, sending any runtime errors
-	// on s.stop.
-	s.handleRequests()
+	// Listen and serve
+	go func() {
+		if err = s.Server.Serve(s.listener); err != http.ErrServerClosed {
+			log.Error().Err(err).Msg("http server exited with unexpected error")
+			s.stop <- err
+		}
+	}()
 
 	log.Debug().Msg("waiting for stop signals or errors")
 	// Wait for either a context cancellation or a signal on the stop channel.
@@ -119,12 +142,48 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	return s.shutdown(err)
 }
 
+func listenAddress() string {
+	// If they are using the corret LISTEN_ADRESS, use this immediately
+	listenAddress := os.Getenv("LISTEN_ADDRESS")
+	if listenAddress != "" {
+		return listenAddress
+	}
+
+	// Legacy logic if ADDRESS or PORT provided
+	address := os.Getenv("ADDRESS")
+	port := os.Getenv("PORT")
+	if address != "" || port != "" {
+		if address != "" {
+			log.Warn().Msg("Environment variable ADDRESS is deprecated and support will be removed in future versions.  Try rebuilding your Function with the latest version of func to use LISTEN_ADDRESS instead.")
+		} else {
+			address = "127.0.0.1"
+		}
+		if port != "" {
+			log.Warn().Msg("Environment variable PORT is deprecated and support will be removed in future version.s  Try rebuilding your Function with the latest version of func to use LISTEN_ADDRESS instead.")
+		} else {
+			port = "8080"
+		}
+		return address + ":" + port
+	}
+
+	return DefaultListenAddress
+}
+
+// Addr returns the address upon which the service is listening if started;
+// nil otherwise.
+func (s *Service) Addr() net.Addr {
+	if s.listener == nil {
+		return nil
+	}
+	return s.listener.Addr()
+}
+
 // Handle requests for the instance
 func (s *Service) Handle(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.f.(Handler); ok {
 		i.Handle(r.Context(), w, r)
 	} else {
-		message := "function does not implement Handle. Skipping"
+		message := "function does not implement Handle. Skipping invocation."
 		log.Debug().Msg(message)
 		_, _ = w.Write([]byte(message))
 	}
@@ -145,7 +204,7 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 			message := "function not yet available"
 			log.Debug().Msg(message)
 			w.WriteHeader(503)
-			_, _ = w.Write([]byte(message))
+			fmt.Fprintln(w, message)
 			return
 		}
 	}
@@ -191,21 +250,6 @@ func (s *Service) startInstance(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) handleRequests() {
-	lis, err := s.listen()
-	if err != nil {
-		s.stop <- err
-		return
-	}
-
-	go func() {
-		if err = s.Server.Serve(lis); err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("http server exited with unexpected error")
-			s.stop <- err
-		}
-	}()
-}
-
 func (s *Service) handleSignals() {
 	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs)
@@ -218,8 +262,6 @@ func (s *Service) handleSignals() {
 			} else if runtime.GOOS == "linux" && sig == syscall.Signal(0x17) {
 				// Ignore SIGURG; signal 23 (0x17)
 				// See https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md
-			} else {
-				log.Debug().Any("signal", sig).Msg("signal ignored")
 			}
 		}
 	}()

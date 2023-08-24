@@ -2,6 +2,9 @@ package http
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -9,26 +12,28 @@ import (
 	"knative.dev/func-go/http/mock"
 )
 
-// TestStart ensures that the Start method of a function is invoked
+// TestStart_Invoked ensures that the Start method of a function is invoked
 // if it is implemented by the function instance.
-func TestStart(t *testing.T) {
+func TestStart_Invoked(t *testing.T) {
+	// Signal to the middleware the Function should be set to listen on
+	// an OS-chosen port such that it does not interfere with other services.
+	// TODO: this should be an instantiation option such that only mainfiles
+	// read and utilize environment variables, and is passed instead to
+	// the new service as a functional option
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
+
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
 		startCh     = make(chan any)
-		stopCh      = make(chan any)
 		errCh       = make(chan error)
 		onStart     = func(_ context.Context, _ map[string]string) error {
 			startCh <- true
 			return nil
 		}
-		onStop = func(_ context.Context) error {
-			stopCh <- true
-			return nil
-		}
 	)
 	defer cancel()
 
-	f := &mock.Function{OnStart: onStart, OnStop: onStop}
+	f := &mock.Function{OnStart: onStart}
 
 	go func() {
 		if err := New(f).Start(ctx); err != nil {
@@ -44,19 +49,49 @@ func TestStart(t *testing.T) {
 	case <-startCh:
 		t.Log("start signal received")
 	}
-	t.Log("waiting for stop channel to return")
 	cancel()
-	<-stopCh
 }
 
-// TestCfg_Envs ensures that the function's Start method receives a map
+// TestStart_Static checks that static method Start(f) is a convenience method
+// for New(f).Start()
+func TestStart_Static(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
+	var (
+		startCh = make(chan any)
+		errCh   = make(chan error)
+		onStart = func(_ context.Context, _ map[string]string) error {
+			startCh <- true
+			return nil
+		}
+	)
+
+	f := &mock.Function{OnStart: onStart}
+
+	go func() {
+		if err := Start(f); err != nil {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("function failed to notify of start")
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-startCh:
+		t.Log("start signal received")
+	}
+}
+
+// TestStart_CfgEnvs ensures that the function's Start method receives a map
 // containing all available environment variables as a parameter.
 //
 // All environment variables are stored in a map which becomes the
 // single argument 'cfg' passed to the Function's Start method.  This ensures
 // that Functions can run in any context and are not coupled to os environment
 // variables.
-func TestCfg_Envs(t *testing.T) {
+func TestStart_CfgEnvs(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
 		startCh     = make(chan any)
@@ -94,7 +129,7 @@ func TestCfg_Envs(t *testing.T) {
 	}
 }
 
-// TestCfg_Static ensures that additional static "environment variables"
+// TestStart_CfgStatic ensures that additional static "environment variables"
 // built into the container as cfg.  The format is one variable per line,
 // [key]=[value].
 //
@@ -102,6 +137,7 @@ func TestCfg_Envs(t *testing.T) {
 // at runtime such as the function's version (if using git), the version of
 // func used to scaffold the function, etc.
 func TestCfg_Static(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
 	var (
 		ctx, cancel = context.WithCancel(context.Background())
 		startCh     = make(chan any)
@@ -150,4 +186,110 @@ func TestCfg_Static(t *testing.T) {
 	case <-startCh:
 		t.Log("start signal received")
 	}
+}
+
+// TestStop_Invoked ensures the Stop method of a funciton is invoked on context
+// cancellation if it is implemented by the function instance.
+func TestStop_Invoked(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
+	var (
+		ctx, cancel = context.WithCancel(context.Background())
+		startCh     = make(chan any)
+		stopCh      = make(chan any)
+		errCh       = make(chan error)
+		onStart     = func(_ context.Context, _ map[string]string) error {
+			startCh <- true
+			return nil
+		}
+		onStop = func(_ context.Context) error {
+			stopCh <- true
+			return nil
+		}
+	)
+
+	f := &mock.Function{OnStart: onStart, OnStop: onStop}
+
+	go func() {
+		if err := New(f).Start(ctx); err != nil {
+			errCh <- err
+		}
+	}()
+
+	// Wait for start, error starting or hang
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("function failed to notify of start")
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-startCh:
+		t.Log("start signal received")
+	}
+
+	// Cancel the context (trigger a stop)
+	cancel()
+
+	// Wait for stop signal, error stopping, or hang
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("function failed to notify of stop")
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-stopCh:
+		t.Log("stop signal received")
+	}
+}
+
+// TestHandle_Invoked ensures the Handle method of a funciton is invoked on
+// a successful http request.
+func TestHandle_Invoked(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
+
+	errCh := make(chan error)
+	startCh := make(chan any)
+
+	f := &mock.Function{
+		OnStart: func(_ context.Context, _ map[string]string) error {
+			startCh <- true
+			return nil
+		},
+		OnHandle: func(_ context.Context, w http.ResponseWriter, _ *http.Request) {
+			fmt.Fprintf(w, "OK")
+		}}
+
+	service := New(f)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		if err := service.Start(ctx); err != nil {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("function failed to start")
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-startCh:
+	}
+
+	t.Logf("Service address: %v\n", service.Addr())
+
+	resp, err := http.Get("http://" + service.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected http status code: %v", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "OK" {
+		t.Fatalf("unexpected body: %v\n", string(body))
+	}
+
 }
