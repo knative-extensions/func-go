@@ -63,39 +63,32 @@ func New(f any) *Service {
 	mux.HandleFunc("/health/liveness", svc.Alive)
 	mux.HandleFunc("/", svc.Handle)
 	svc.Server.Handler = mux
+
+	// Print some helpful information about which interfaces the function
+	// is correctly implementing
+	logImplements(f)
+
 	return svc
 }
 
-func (s *Service) Addr() net.Addr {
-	return s.listener.Addr()
-
-}
-
-func listenAddress() string {
-	// If they are using the corret LISTEN_ADRESS, use this immediately
-	listenAddress := os.Getenv("LISTEN_ADDRESS")
-	if listenAddress != "" {
-		return listenAddress
+// log which interfaces the function implements.
+// This could be more verbose for new users:
+func logImplements(f any) {
+	if _, ok := f.(Handler); ok {
+		log.Info().Msg("Function implements Handle")
 	}
-
-	// Legacy logic if ADDRESS or PORT provided
-	address := os.Getenv("ADDRESS")
-	port := os.Getenv("PORT")
-	if address != "" || port != "" {
-		if address != "" {
-			log.Warn().Msg("Environment variable ADDRESS is deprecated and support will be removed in future versions.  Try rebuilding your Function with the latest version of func to use LISTEN_ADDRESS instead.")
-		} else {
-			address = "127.0.0.1"
-		}
-		if port != "" {
-			log.Warn().Msg("Environment variable PORT is deprecated and support will be removed in future version.s  Try rebuilding your Function with the latest version of func to use LISTEN_ADDRESS instead.")
-		} else {
-			port = "8080"
-		}
-		return address + ":" + port
+	if _, ok := f.(Starter); ok {
+		log.Info().Msg("Function implements Start")
 	}
-
-	return DefaultListenAddress
+	if _, ok := f.(Stopper); ok {
+		log.Info().Msg("Function implements Stop")
+	}
+	if _, ok := f.(ReadinessReporter); ok {
+		log.Info().Msg("Function implements Ready")
+	}
+	if _, ok := f.(LivenessReporter); ok {
+		log.Info().Msg("Function implements Alive")
+	}
 }
 
 // Start
@@ -149,6 +142,42 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	return s.shutdown(err)
 }
 
+func listenAddress() string {
+	// If they are using the corret LISTEN_ADRESS, use this immediately
+	listenAddress := os.Getenv("LISTEN_ADDRESS")
+	if listenAddress != "" {
+		return listenAddress
+	}
+
+	// Legacy logic if ADDRESS or PORT provided
+	address := os.Getenv("ADDRESS")
+	port := os.Getenv("PORT")
+	if address != "" || port != "" {
+		if address != "" {
+			log.Warn().Msg("Environment variable ADDRESS is deprecated and support will be removed in future versions.  Try rebuilding your Function with the latest version of func to use LISTEN_ADDRESS instead.")
+		} else {
+			address = "127.0.0.1"
+		}
+		if port != "" {
+			log.Warn().Msg("Environment variable PORT is deprecated and support will be removed in future version.s  Try rebuilding your Function with the latest version of func to use LISTEN_ADDRESS instead.")
+		} else {
+			port = "8080"
+		}
+		return address + ":" + port
+	}
+
+	return DefaultListenAddress
+}
+
+// Addr returns the address upon which the service is listening if started;
+// nil otherwise.
+func (s *Service) Addr() net.Addr {
+	if s.listener == nil {
+		return nil
+	}
+	return s.listener.Addr()
+}
+
 // Handle requests for the instance
 func (s *Service) Handle(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.f.(Handler); ok {
@@ -178,8 +207,6 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintln(w, message)
 			return
 		}
-	} else {
-		log.Debug().Msg("Function does not implement Ready.  Reporting 'ready' on its behalf.")
 	}
 	fmt.Fprintf(w, "READY")
 }
@@ -202,8 +229,6 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write([]byte(message))
 			return
 		}
-	} else {
-		log.Debug().Msg("Function does not implement Alive.  Reporting 'alive' on its behalf.")
 	}
 	fmt.Fprintf(w, "ALIVE")
 }
@@ -237,8 +262,6 @@ func (s *Service) handleSignals() {
 			} else if runtime.GOOS == "linux" && sig == syscall.Signal(0x17) {
 				// Ignore SIGURG; signal 23 (0x17)
 				// See https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md
-			} else {
-				log.Debug().Any("signal", sig).Msg("signal ignored")
 			}
 		}
 	}()
