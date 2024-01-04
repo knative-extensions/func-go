@@ -1,6 +1,12 @@
-package http
+package common
 
-import "github.com/rs/zerolog"
+import (
+	"github.com/rs/zerolog"
+)
+
+const (
+	DefaultLogLevel = LogDebug
+)
 
 func init() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
