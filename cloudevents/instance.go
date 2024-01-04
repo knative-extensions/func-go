@@ -79,7 +79,7 @@ type DefaultHandler struct {
 // So here we accept any structure which exports a mamber named "Handle", and
 // then leave it up to the cloudevents SDK to fail if the arguments and
 // return variables are not one of the supported signature.
-// It is important to the funciton developer's usage to be able to simply
+// It is important to the function developer's usage to be able to simply
 // declare their function has a method Handle... without needing themselves
 // to implement the ProduceHandler method, because that's ugly and confusing.
 // The way this is accomplished is by decorating the passed instance in a
