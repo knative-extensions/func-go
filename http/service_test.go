@@ -188,7 +188,7 @@ func TestCfg_Static(t *testing.T) {
 	}
 }
 
-// TestStop_Invoked ensures the Stop method of a funciton is invoked on context
+// TestStop_Invoked ensures the Stop method of a function is invoked on context
 // cancellation if it is implemented by the function instance.
 func TestStop_Invoked(t *testing.T) {
 	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
@@ -239,7 +239,7 @@ func TestStop_Invoked(t *testing.T) {
 	}
 }
 
-// TestHandle_Invoked ensures the Handle method of a funciton is invoked on
+// TestHandle_Invoked ensures the Handle method of a function is invoked on
 // a successful http request.
 func TestHandle_Invoked(t *testing.T) {
 	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
