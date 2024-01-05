@@ -143,43 +143,43 @@ func newCloudeventHandler(f any) http.Handler {
 }
 
 // Ready handles readiness checks.
-func (s *Service) Ready(res http.ResponseWriter, req *http.Request) {
+func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.i.(ReadinessReporter); ok {
-		ready, err := i.Ready(req.Context())
+		ready, err := i.Ready(r.Context())
 		if err != nil {
 			e := fmt.Sprintf("error determinging readiness.  %v\n", err)
 			fmt.Fprintf(os.Stderr, e)
-			res.WriteHeader(500)
-			res.Write([]byte(e))
+			w.WriteHeader(500)
+			w.Write([]byte(e))
 			return
 		}
 		if !ready {
-			res.WriteHeader(503)
-			res.Write([]byte("Function not yet available"))
+			w.WriteHeader(503)
+			w.Write([]byte("Function not yet available"))
 			return
 		}
 	}
-	fmt.Fprintf(res, "READY")
+	fmt.Fprintf(w, "READY")
 }
 
 // Alive handles liveness checks.
-func (s *Service) Alive(res http.ResponseWriter, req *http.Request) {
+func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.i.(LivenessReporter); ok {
-		alive, err := i.Alive(req.Context())
+		alive, err := i.Alive(r.Context())
 		if err != nil {
 			e := fmt.Sprintf("error determinging liveness.  %v\n", err)
 			fmt.Fprintf(os.Stderr, e)
-			res.WriteHeader(500)
-			res.Write([]byte(e))
+			w.WriteHeader(500)
+			w.Write([]byte(e))
 			return
 		}
 		if !alive {
-			res.WriteHeader(503)
-			res.Write([]byte("Function not live"))
+			w.WriteHeader(503)
+			w.Write([]byte("Function not live"))
 			return
 		}
 	}
-	fmt.Fprintf(res, "ALIVE")
+	fmt.Fprintf(w, "ALIVE")
 }
 
 func (s *Service) handleRequests() {
