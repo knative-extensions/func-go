@@ -204,8 +204,6 @@ func (s *Service) handleSignals() {
 			} else if runtime.GOOS == "linux" && sig == syscall.Signal(0x17) {
 				// Ignore SIGURG; signal 23 (0x17)
 				// See https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md
-			} else {
-				log.Printf("Signal '%v' ignored.", sig)
 			}
 		}
 	}()
