@@ -6,7 +6,6 @@ package cloudevents
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -17,9 +16,11 @@ import (
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
+	"github.com/rs/zerolog/log"
 )
 
 const (
+	DefaultLogLevel       = LogDebug
 	DefaultServicePort    = "8080"
 	ServerShutdownTimeout = 30 * time.Second
 	InstanceStopTimeout   = 30 * time.Second
@@ -27,6 +28,7 @@ const (
 
 // Start an intance using a new Service
 func Start(i Handler) error {
+	log.Debug().Msg("func runtime creating function instance")
 	return New(i).Start(context.Background())
 }
 
@@ -76,7 +78,7 @@ func (s *Service) Stop() {
 	ctx, cancel := context.WithTimeout(context.Background(), ServerShutdownTimeout)
 	defer cancel()
 	if err := s.Shutdown(ctx); err != nil {
-		log.Printf("warning: error during shutdown. %s", err)
+		log.Warn().Err(err).Msg("error during shutdown")
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), InstanceStopTimeout)
@@ -96,7 +98,7 @@ func NewF() *MyFunction {
 }
 
 func (f *MyFunction) Handle() {
-	fmt.Println("Instanced CE Handle called")
+	log.Debug().Msg("Instanced CE Handle called")
 }
 
 func debug() any {
@@ -147,15 +149,17 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.i.(ReadinessReporter); ok {
 		ready, err := i.Ready(r.Context())
 		if err != nil {
-			e := fmt.Sprintf("error determinging readiness.  %v\n", err)
-			fmt.Fprintf(os.Stderr, e)
+			message := "error checking readiness"
+			log.Debug().Err(err).Msg(message)
 			w.WriteHeader(500)
-			w.Write([]byte(e))
+			_, _ = w.Write([]byte(message + ". " + err.Error()))
 			return
 		}
 		if !ready {
+			message := "function not yet available"
+			log.Debug().Msg(message)
 			w.WriteHeader(503)
-			w.Write([]byte("Function not yet available"))
+			fmt.Fprintln(w, message)
 			return
 		}
 	}
@@ -167,15 +171,17 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 	if i, ok := s.i.(LivenessReporter); ok {
 		alive, err := i.Alive(r.Context())
 		if err != nil {
-			e := fmt.Sprintf("error determinging liveness.  %v\n", err)
-			fmt.Fprintf(os.Stderr, e)
+			message := "error checking liveness"
+			log.Err(err).Msg(message)
 			w.WriteHeader(500)
-			w.Write([]byte(e))
+			_, _ = w.Write([]byte(message + ". " + err.Error()))
 			return
 		}
 		if !alive {
+			message := "function not ready"
+			log.Debug().Msg(message)
 			w.WriteHeader(503)
-			w.Write([]byte("Function not live"))
+			_, _ = w.Write([]byte(message))
 			return
 		}
 	}
@@ -185,11 +191,11 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 func (s *Service) handleRequests() {
 	go func() {
 		if err := s.Server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Printf("http server exited with unexpected error: %v", err)
+			log.Error().Err(err).Msg("http server exited with unexpected error")
 			s.done <- err
 		}
 	}()
-	log.Printf("Listening on port %v", port())
+	log.Debug().Str("port", port()).Msg("Listening on port")
 }
 
 func (s *Service) handleSignals() {
@@ -199,7 +205,7 @@ func (s *Service) handleSignals() {
 		for {
 			sig := <-sigs
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
-				log.Printf("Signal '%v' received. Stopping.", sig)
+				log.Debug().Any("signal", sig).Msg("signal received")
 				s.Stop()
 			} else if runtime.GOOS == "linux" && sig == syscall.Signal(0x17) {
 				// Ignore SIGURG; signal 23 (0x17)
