@@ -56,6 +56,8 @@ Supported method signatures:
 	Handle(context.Context, event.Event) *event.Event
 	Handle(context.Context, event.Event) (*event.Event, error)
 */
-func (f *MyFunction) Handle() {
+func (f *MyFunction) Handle(ctx context.Context, e event.Event) (*event.Event, error) {
 	fmt.Println("Instanced CloudEvents handler invoked")
+	fmt.Println(e) // echo to local output
+	return &e, nil // echo to caller
 }
