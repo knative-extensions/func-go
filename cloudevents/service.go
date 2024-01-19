@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,27 +24,31 @@ import (
 const (
 	DefaultLogLevel       = LogDebug
 	DefaultServicePort    = "8080"
+	DefaultListenAddress  = "127.0.0.1:8080"
 	ServerShutdownTimeout = 30 * time.Second
 	InstanceStopTimeout   = 30 * time.Second
 )
 
 // Start an intance using a new Service
-func Start(i Handler) error {
+// Note that for CloudEvent Handlers this effectively accepts ANY because
+// the actual type of the handler function is determined later.
+func Start(f any) error {
 	log.Debug().Msg("func runtime creating function instance")
-	return New(i).Start(context.Background())
+	return New(f).Start(context.Background())
 }
 
 // Service exposes a Function Instance as a an HTTP service.
 type Service struct {
 	http.Server
-	i    Handler
-	stop chan error
+	listener net.Listener
+	f        any
+	stop     chan error
 }
 
 // New Service which service the given instance.
-func New(i Handler) *Service {
+func New(f any) *Service {
 	svc := &Service{
-		i:    i,
+		f:    f,
 		stop: make(chan error),
 		Server: http.Server{
 			Addr:              ":" + port(),
@@ -57,19 +62,36 @@ func New(i Handler) *Service {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health/readiness", svc.Ready)
 	mux.HandleFunc("/health/liveness", svc.Alive)
-	mux.Handle("/", newCloudeventHandler(i)) // See implementation note
+	mux.Handle("/", newCloudeventHandler(f)) // See implementation note
 	svc.Server.Handler = mux
 	return svc
 }
 
 // Start serving
 func (s *Service) Start(ctx context.Context) (err error) {
+	// Get the listen address
+	// TODO: Currently this is an env var for legacy reasons. Logic should
+	// be moved into the generated mainfiles, and this setting be an optional
+	// functional option WithListenAddress(os.Getenv("LISTEN_ADDRESS"))
+	addr := listenAddress()
+	log.Debug().Str("address", addr).Msg("function starting")
+
+	// Listen
+	if s.listener, err = net.Listen("tcp", addr); err != nil {
+		return
+	}
+
 	// Start
 	// Starts the function instance in a separate routine, sending any
 	// runtime errors on s.stop.
 	if err = s.startInstance(ctx); err != nil {
 		return
 	}
+
+	// Wait for signals
+	// Interrupts and Kill signals
+	// sending a message on the s.stop channel if either are received.
+	s.handleSignals()
 
 	// Listen and serve
 	go func() {
@@ -78,28 +100,54 @@ func (s *Service) Start(ctx context.Context) (err error) {
 			s.stop <- err
 		}
 	}()
-	log.Debug().Str("port", port()).Msg("Listening on port")
 
-	s.handleSignals()
-	return <-s.stop
+	log.Debug().Msg("waiting for stop signals or errors")
+	// Wait for either a context cancellation or a signal on the stop channel.
+	select {
+	case err = <-s.stop:
+		if err != nil {
+			log.Error().Err(err).Msg("function error")
+		}
+	case <-ctx.Done():
+		log.Debug().Msg("function canceled")
+	}
+	return s.shutdown(err)
 }
 
-// Stop serving
-func (s *Service) Stop() {
-	ctx, cancel := context.WithTimeout(context.Background(), ServerShutdownTimeout)
-	defer cancel()
-	if err := s.Shutdown(ctx); err != nil {
-		log.Warn().Err(err).Msg("error during shutdown")
+func listenAddress() string {
+	// If they are using the corret LISTEN_ADRESS, use this immediately
+	listenAddress := os.Getenv("LISTEN_ADDRESS")
+	if listenAddress != "" {
+		return listenAddress
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), InstanceStopTimeout)
-	defer cancel()
-
-	if i, ok := s.i.(Stopper); ok {
-		s.stop <- i.Stop(ctx)
-	} else {
-		s.stop <- nil
+	// Legacy logic if ADDRESS or PORT provided
+	address := os.Getenv("ADDRESS")
+	port := os.Getenv("PORT")
+	if address != "" || port != "" {
+		if address != "" {
+			log.Warn().Msg("Environment variable ADDRESS is deprecated and support will be removed in future versions.  Try rebuilding your Function with the latest version of func to use LISTEN_ADDRESS instead.")
+		} else {
+			address = "127.0.0.1"
+		}
+		if port != "" {
+			log.Warn().Msg("Environment variable PORT is deprecated and support will be removed in future version.s  Try rebuilding your Function with the latest version of func to use LISTEN_ADDRESS instead.")
+		} else {
+			port = "8080"
+		}
+		return address + ":" + port
 	}
+
+	return DefaultListenAddress
+}
+
+// Addr returns the address upon which the service is listening if started;
+// nil otherwise.
+func (s *Service) Addr() net.Addr {
+	if s.listener == nil {
+		return nil
+	}
+	return s.listener.Addr()
 }
 
 // NOTE: no Handle on service because of the need to decorate the handler
@@ -134,7 +182,7 @@ func newCloudeventHandler(f any) http.Handler {
 
 // Ready handles readiness checks.
 func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
-	if i, ok := s.i.(ReadinessReporter); ok {
+	if i, ok := s.f.(ReadinessReporter); ok {
 		ready, err := i.Ready(r.Context())
 		if err != nil {
 			message := "error checking readiness"
@@ -156,7 +204,7 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 
 // Alive handles liveness checks.
 func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
-	if i, ok := s.i.(LivenessReporter); ok {
+	if i, ok := s.f.(LivenessReporter); ok {
 		alive, err := i.Alive(r.Context())
 		if err != nil {
 			message := "error checking liveness"
@@ -177,7 +225,7 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) startInstance(ctx context.Context) error {
-	if i, ok := s.i.(Starter); ok {
+	if i, ok := s.f.(Starter); ok {
 		cfg, err := newCfg()
 		if err != nil {
 			return err
@@ -194,14 +242,14 @@ func (s *Service) startInstance(ctx context.Context) error {
 }
 
 func (s *Service) handleSignals() {
-	sigs := make(chan os.Signal, 1)
+	sigs := make(chan os.Signal, 2)
 	signal.Notify(sigs)
 	go func() {
 		for {
 			sig := <-sigs
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				log.Debug().Any("signal", sig).Msg("signal received")
-				s.Stop()
+				s.stop <- nil
 			} else if runtime.GOOS == "linux" && sig == syscall.Signal(0x17) {
 				// Ignore SIGURG; signal 23 (0x17)
 				// See https://go.googlesource.com/proposal/+/master/design/24543-non-cooperative-preemption.md
@@ -249,6 +297,45 @@ func newCfg() (cfg map[string]string, err error) {
 	for _, e := range os.Environ() {
 		pair := strings.SplitN(e, "=", 2)
 		cfg[pair[0]] = pair[1]
+	}
+	return
+}
+
+// shutdown is invoked when the stop channel receives a message and attempts to
+// gracefully cease execution.
+// Passed in is the message received on the stop channel, wich is either an
+// error in the case of a runtime error, or nil in the case of a context
+// cancellation or sigint/sigkill.
+func (s *Service) shutdown(sourceErr error) (err error) {
+	log.Debug().Msg("function stopping")
+	var runtimeErr, instanceErr error
+
+	// Start a graceful shutdown of the HTTP server
+	ctx, cancel := context.WithTimeout(context.Background(), ServerShutdownTimeout)
+	defer cancel()
+	runtimeErr = s.Shutdown(ctx)
+
+	//  Start a graceful shutdown of the Function instance
+	if i, ok := s.f.(Stopper); ok {
+		ctx, cancel = context.WithTimeout(context.Background(), InstanceStopTimeout)
+		defer cancel()
+		instanceErr = i.Stop(ctx)
+	}
+
+	return collapseErrors("shutdown error", sourceErr, instanceErr, runtimeErr)
+}
+
+// collapseErrors returns the first non-nil error which it is passed,
+// printing the rest to log with the given prefix.
+func collapseErrors(msg string, ee ...error) (err error) {
+	for _, e := range ee {
+		if e != nil {
+			if err == nil {
+				err = e
+			} else {
+				log.Error().Err(e).Msg(msg)
+			}
+		}
 	}
 	return
 }
