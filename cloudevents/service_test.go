@@ -2,7 +2,11 @@ package cloudevents
 
 import (
 	"context"
+	"fmt"
+	cloudevents "github.com/cloudevents/sdk-go/v2"
+	"github.com/cloudevents/sdk-go/v2/event"
 	"knative.dev/func-go/cloudevents/mock"
+	"log"
 	"os"
 	"testing"
 	"time"
@@ -225,5 +229,64 @@ func TestStop_Invoked(t *testing.T) {
 		t.Fatal(err)
 	case <-stopCh:
 		t.Log("stop signal received")
+	}
+}
+
+// TestHandle_Invoked ensures the Handle method of a function is invoked on
+// a successful http request.
+func TestHandle_Invoked(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
+
+	errCh := make(chan error)
+	startCh := make(chan any)
+
+	f := &mock.Function{
+		OnStart: func(_ context.Context, _ map[string]string) error {
+			startCh <- true
+			return nil
+		},
+		OnHandle: func(ctx context.Context, event event.Event) (*event.Event, error) {
+			fmt.Println("Instanced CloudEvents handler invoked")
+			fmt.Println(event) // echo to local output
+			return nil, nil    // echo to caller
+		}}
+
+	service := New(f)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		if err := service.Start(ctx); err != nil {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("function failed to start")
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-startCh:
+	}
+
+	t.Logf("Service address: %v\n", service.Addr())
+
+	// Send a request:
+	c, err := cloudevents.NewClientHTTP()
+	if err != nil {
+		log.Fatalf("failed to create client, %v", err)
+	}
+
+	// Create an Event.
+	event := cloudevents.NewEvent()
+	event.SetSource("example/uri")
+	event.SetType("example.type")
+	event.SetData(cloudevents.ApplicationJSON, map[string]string{"hello": "world"})
+
+	// Set a target.
+	ctx = cloudevents.ContextWithTarget(context.Background(), "http://localhost:8080/")
+
+	// Send that Event.
+	if result := c.Send(ctx, event); cloudevents.IsUndelivered(result) {
+		log.Fatalf("failed to send, %v", result)
 	}
 }
