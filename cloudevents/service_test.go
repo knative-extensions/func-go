@@ -283,7 +283,7 @@ func TestHandle_Invoked(t *testing.T) {
 	event.SetData(cloudevents.ApplicationJSON, map[string]string{"hello": "world"})
 
 	// Set a target.
-	ctx = cloudevents.ContextWithTarget(context.Background(), "http://localhost:8080/")
+	ctx = cloudevents.ContextWithTarget(context.Background(), "http://"+service.Addr().String())
 
 	// Send that Event.
 	if result := c.Send(ctx, event); cloudevents.IsUndelivered(result) {
