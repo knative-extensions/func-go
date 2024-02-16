@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -51,7 +50,6 @@ func New(f any) *Service {
 		f:    f,
 		stop: make(chan error),
 		Server: http.Server{
-			Addr:              ":" + port(),
 			ReadTimeout:       30 * time.Second,
 			WriteTimeout:      30 * time.Second,
 			IdleTimeout:       30 * time.Second,
@@ -93,9 +91,8 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	// sending a message on the s.stop channel if either are received.
 	s.handleSignals()
 
-	// Listen and serve
 	go func() {
-		if err := s.Server.ListenAndServe(); err != http.ErrServerClosed {
+		if err = s.Server.Serve(s.listener); err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("http server exited with unexpected error")
 			s.stop <- err
 		}
@@ -167,12 +164,7 @@ func newCloudeventHandler(f any) http.Handler {
 		h = getReceiverFn(f)
 	}
 
-	port, err := strconv.Atoi(port())
-	panicOn(err)
-	protocol, err := cloudevents.NewHTTP(
-		cloudevents.WithPort(port),
-		cloudevents.WithPath("/"),
-	)
+	protocol, err := cloudevents.NewHTTP()
 	panicOn(err)
 	ctx := context.Background() // ctx is not used by NewHTTPReceiveHandler
 	cloudeventReceiver, err := cloudevents.NewHTTPReceiveHandler(ctx, protocol, h)
@@ -338,13 +330,6 @@ func collapseErrors(msg string, ee ...error) (err error) {
 		}
 	}
 	return
-}
-
-func port() (p string) {
-	if os.Getenv("PORT") == "" {
-		return DefaultServicePort
-	}
-	return os.Getenv("PORT")
 }
 
 // CE-specific helpers
