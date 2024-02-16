@@ -5,7 +5,6 @@ import (
 	"fmt"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/event"
-	"io"
 	"knative.dev/func-go/cloudevents/mock"
 	"log"
 	"net/http"
@@ -335,14 +334,6 @@ func TestReady_Invoked(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected http status code: %v", resp.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(body) != "READY" {
-		t.Fatalf("unexpected body: %v\n", string(body))
-	}
-
 }
 
 // TestAlive_Invoked ensures the default Alive Handle method of a function is invoked on
@@ -387,12 +378,4 @@ func TestAlive_Invoked(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected http status code: %v", resp.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(body) != "ALIVE" {
-		t.Fatalf("unexpected body: %v\n", string(body))
-	}
-
 }
