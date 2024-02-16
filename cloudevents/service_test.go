@@ -7,6 +7,7 @@ import (
 	"github.com/cloudevents/sdk-go/v2/event"
 	"knative.dev/func-go/cloudevents/mock"
 	"log"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -288,5 +289,93 @@ func TestHandle_Invoked(t *testing.T) {
 	// Send that Event.
 	if result := c.Send(ctx, event); cloudevents.IsUndelivered(result) {
 		log.Fatalf("failed to send, %v", result)
+	}
+}
+
+// TestReady_Invoked ensures the default Ready Handle method of a function is invoked on
+// a successful http request.
+func TestReady_Invoked(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
+
+	errCh := make(chan error)
+	startCh := make(chan any)
+
+	f := &mock.Function{
+		OnStart: func(_ context.Context, _ map[string]string) error {
+			startCh <- true
+			return nil
+		}}
+
+	service := New(f)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		if err := service.Start(ctx); err != nil {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("function failed to start")
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-startCh:
+	}
+
+	t.Logf("Service address: %v\n", service.Addr())
+
+	resp, err := http.Get("http://" + service.Addr().String() + "/health/readiness")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected http status code: %v", resp.StatusCode)
+	}
+}
+
+// TestAlive_Invoked ensures the default Alive Handle method of a function is invoked on
+// a successful http request.
+func TestAlive_Invoked(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
+
+	errCh := make(chan error)
+	startCh := make(chan any)
+
+	f := &mock.Function{
+		OnStart: func(_ context.Context, _ map[string]string) error {
+			startCh <- true
+			return nil
+		}}
+
+	service := New(f)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		if err := service.Start(ctx); err != nil {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("function failed to start")
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-startCh:
+	}
+
+	t.Logf("Service address: %v\n", service.Addr())
+
+	resp, err := http.Get("http://" + service.Addr().String() + "/health/liveness")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected http status code: %v", resp.StatusCode)
 	}
 }
