@@ -301,6 +301,7 @@ func TestReady_Invoked(t *testing.T) {
 
 	errCh := make(chan error)
 	startCh := make(chan any)
+	timeoutCh := time.After(500 * time.Millisecond)
 
 	f := &mock.Function{
 		OnStart: func(_ context.Context, _ map[string]string) error {
@@ -318,11 +319,12 @@ func TestReady_Invoked(t *testing.T) {
 	}()
 
 	select {
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("function failed to start")
+	case <-timeoutCh:
+		t.Fatal("Service timed out")
 	case err := <-errCh:
 		t.Fatal(err)
 	case <-startCh:
+		// Service started successfully
 	}
 
 	t.Logf("Service address: %v\n", service.Addr())
@@ -345,6 +347,7 @@ func TestAlive_Invoked(t *testing.T) {
 
 	errCh := make(chan error)
 	startCh := make(chan any)
+	timeoutCh := time.After(500 * time.Millisecond)
 
 	f := &mock.Function{
 		OnStart: func(_ context.Context, _ map[string]string) error {
@@ -362,11 +365,12 @@ func TestAlive_Invoked(t *testing.T) {
 	}()
 
 	select {
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("function failed to start")
+	case <-timeoutCh:
+		t.Fatal("Service timed out")
 	case err := <-errCh:
 		t.Fatal(err)
 	case <-startCh:
+		// Service started successfully
 	}
 
 	t.Logf("Service address: %v\n", service.Addr())
