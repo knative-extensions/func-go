@@ -243,24 +243,26 @@ func TestStop_Invoked(t *testing.T) {
 func TestHandle_Invoked(t *testing.T) {
 	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
 
-	errCh := make(chan error)
-	startCh := make(chan any)
-	timeoutCh := time.After(500 * time.Millisecond)
-
-	f := &mock.Function{
-		OnStart: func(_ context.Context, _ map[string]string) error {
+	var (
+		ctx, cancel = context.WithCancel(context.Background())
+		errCh       = make(chan error)
+		startCh     = make(chan any)
+		timeoutCh   = time.After(500 * time.Millisecond)
+		onStart     = func(_ context.Context, _ map[string]string) error {
 			startCh <- true
 			return nil
-		},
-		OnHandle: func(ctx context.Context, event event.Event) (*event.Event, error) {
+		}
+		onHandle = func(_ context.Context, event event.Event) (*event.Event, error) {
 			fmt.Println("Instanced CloudEvents handler invoked")
 			fmt.Println(event) // echo to local output
 			return nil, nil    // echo to caller
-		}}
-
-	service := New(f)
-	ctx, cancel := context.WithCancel(context.Background())
+		}
+	)
 	defer cancel()
+
+	f := &mock.Function{OnStart: onStart, OnHandle: onHandle}
+	service := New(f)
+
 	go func() {
 		if err := service.Start(ctx); err != nil {
 			errCh <- err
@@ -303,19 +305,20 @@ func TestHandle_Invoked(t *testing.T) {
 func TestReady_Invoked(t *testing.T) {
 	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
 
-	errCh := make(chan error)
-	startCh := make(chan any)
-	timeoutCh := time.After(500 * time.Millisecond)
-
-	f := &mock.Function{
-		OnStart: func(_ context.Context, _ map[string]string) error {
+	var (
+		ctx, cancel = context.WithCancel(context.Background())
+		errCh       = make(chan error)
+		startCh     = make(chan any)
+		timeoutCh   = time.After(500 * time.Millisecond)
+		onStart     = func(_ context.Context, _ map[string]string) error {
 			startCh <- true
 			return nil
-		}}
-
-	service := New(f)
-	ctx, cancel := context.WithCancel(context.Background())
+		}
+	)
 	defer cancel()
+
+	f := &mock.Function{OnStart: onStart}
+	service := New(f)
 	go func() {
 		if err := service.Start(ctx); err != nil {
 			errCh <- err
@@ -349,19 +352,20 @@ func TestReady_Invoked(t *testing.T) {
 func TestAlive_Invoked(t *testing.T) {
 	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
 
-	errCh := make(chan error)
-	startCh := make(chan any)
-	timeoutCh := time.After(500 * time.Millisecond)
-
-	f := &mock.Function{
-		OnStart: func(_ context.Context, _ map[string]string) error {
+	var (
+		ctx, cancel = context.WithCancel(context.Background())
+		errCh       = make(chan error)
+		startCh     = make(chan any)
+		timeoutCh   = time.After(500 * time.Millisecond)
+		onStart     = func(_ context.Context, _ map[string]string) error {
 			startCh <- true
 			return nil
-		}}
-
-	service := New(f)
-	ctx, cancel := context.WithCancel(context.Background())
+		}
+	)
 	defer cancel()
+
+	f := &mock.Function{OnStart: onStart}
+	service := New(f)
 	go func() {
 		if err := service.Start(ctx); err != nil {
 			errCh <- err
