@@ -22,7 +22,6 @@ import (
 
 const (
 	DefaultLogLevel       = LogDebug
-	DefaultServicePort    = "8080"
 	DefaultListenAddress  = "127.0.0.1:8080"
 	ServerShutdownTimeout = 30 * time.Second
 	InstanceStopTimeout   = 30 * time.Second
