@@ -26,6 +26,7 @@ func TestStart_Invoked(t *testing.T) {
 		ctx, cancel = context.WithCancel(context.Background())
 		startCh     = make(chan any)
 		errCh       = make(chan error)
+		timeoutCh   = time.After(500 * time.Millisecond)
 		onStart     = func(_ context.Context, _ map[string]string) error {
 			startCh <- true
 			return nil
@@ -42,7 +43,7 @@ func TestStart_Invoked(t *testing.T) {
 	}()
 
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-timeoutCh:
 		t.Fatal("function failed to notify of start")
 	case err := <-errCh:
 		t.Fatal(err)
@@ -57,9 +58,10 @@ func TestStart_Invoked(t *testing.T) {
 func TestStart_Static(t *testing.T) {
 	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
 	var (
-		startCh = make(chan any)
-		errCh   = make(chan error)
-		onStart = func(_ context.Context, _ map[string]string) error {
+		startCh   = make(chan any)
+		errCh     = make(chan error)
+		timeoutCh = time.After(500 * time.Millisecond)
+		onStart   = func(_ context.Context, _ map[string]string) error {
 			startCh <- true
 			return nil
 		}
@@ -74,7 +76,7 @@ func TestStart_Static(t *testing.T) {
 	}()
 
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-timeoutCh:
 		t.Fatal("function failed to notify of start")
 	case err := <-errCh:
 		t.Fatal(err)
@@ -96,6 +98,7 @@ func TestStart_CfgEnvs(t *testing.T) {
 		ctx, cancel = context.WithCancel(context.Background())
 		startCh     = make(chan any)
 		errCh       = make(chan error)
+		timeoutCh   = time.After(500 * time.Millisecond)
 		onStart     = func(_ context.Context, cfg map[string]string) error {
 			v := cfg["TEST_ENV"]
 			if v != "example_value" {
@@ -120,7 +123,7 @@ func TestStart_CfgEnvs(t *testing.T) {
 	}()
 
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-timeoutCh:
 		t.Fatal("function failed to notify of start")
 	case err := <-errCh:
 		t.Fatal(err)
@@ -142,6 +145,7 @@ func TestCfg_Static(t *testing.T) {
 		ctx, cancel = context.WithCancel(context.Background())
 		startCh     = make(chan any)
 		errCh       = make(chan error)
+		timeoutCh   = time.After(500 * time.Millisecond)
 	)
 	defer cancel()
 
@@ -179,7 +183,7 @@ func TestCfg_Static(t *testing.T) {
 
 	// Wait for a signal the onStart indicatig the function executed
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-timeoutCh:
 		t.Fatal("function failed to notify of start")
 	case err := <-errCh:
 		t.Fatal(err)
@@ -197,6 +201,7 @@ func TestStop_Invoked(t *testing.T) {
 		startCh     = make(chan any)
 		stopCh      = make(chan any)
 		errCh       = make(chan error)
+		timeoutCh   = time.After(500 * time.Millisecond)
 		onStart     = func(_ context.Context, _ map[string]string) error {
 			startCh <- true
 			return nil
@@ -217,7 +222,7 @@ func TestStop_Invoked(t *testing.T) {
 
 	// Wait for start, error starting or hang
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-timeoutCh:
 		t.Fatal("function failed to notify of start")
 	case err := <-errCh:
 		t.Fatal(err)
@@ -246,6 +251,7 @@ func TestHandle_Invoked(t *testing.T) {
 
 	errCh := make(chan error)
 	startCh := make(chan any)
+	timeoutCh := time.After(500 * time.Millisecond)
 
 	f := &mock.Function{
 		OnStart: func(_ context.Context, _ map[string]string) error {
@@ -266,7 +272,7 @@ func TestHandle_Invoked(t *testing.T) {
 	}()
 
 	select {
-	case <-time.After(500 * time.Millisecond):
+	case <-timeoutCh:
 		t.Fatal("function failed to start")
 	case err := <-errCh:
 		t.Fatal(err)
