@@ -3,14 +3,15 @@ package cloudevents
 import (
 	"context"
 	"fmt"
-	cloudevents "github.com/cloudevents/sdk-go/v2"
-	"github.com/cloudevents/sdk-go/v2/event"
-	"knative.dev/func-go/cloudevents/mock"
 	"log"
 	"net/http"
 	"os"
 	"testing"
 	"time"
+
+	cloudevents "github.com/cloudevents/sdk-go/v2"
+	"github.com/cloudevents/sdk-go/v2/event"
+	"knative.dev/func-go/cloudevents/mock"
 )
 
 // TestStart_Invoked ensures that the Start method of a function is invoked
