@@ -257,7 +257,7 @@ func TestHandle_Invoked(t *testing.T) {
 			startCh <- true
 			return nil
 		}
-		onHandle = func(_ context.Context, w http.ResponseWriter, _ *http.Request) {
+		onHandle = func(w http.ResponseWriter, _ *http.Request) {
 			fmt.Fprintf(w, "OK")
 		}
 	)

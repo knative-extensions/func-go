@@ -3,8 +3,6 @@ package http
 import (
 	"context"
 	"net/http"
-
-	"github.com/rs/zerolog/log"
 )
 
 // Handler is a function instance which can handle a request.
@@ -14,8 +12,10 @@ import (
 // framework is the same.
 type Handler interface {
 	// Handle a request.
-	Handle(context.Context, http.ResponseWriter, *http.Request)
+	Handle(http.ResponseWriter, *http.Request)
 }
+
+type HandleFunc func(http.ResponseWriter, *http.Request)
 
 // Starter is an instance which has defined the Start hook
 type Starter interface {
@@ -41,26 +41,12 @@ type LivenessReporter interface {
 	Alive(context.Context) (bool, error)
 }
 
-// HandleFunc defines the function signature expected of static Functions.
-type HandleFunc func(context.Context, http.ResponseWriter, *http.Request)
-
 // DefaultHandler is used for simple static function implementations which
 // need only define a single exported function named Handle of type HandleFunc.
 type DefaultHandler struct {
 	Handler HandleFunc
 }
 
-// Handle a request by passing to the handler function.
-func (f DefaultHandler) Handle(ctx context.Context, res http.ResponseWriter, req *http.Request) {
-	if f.Handler == nil {
-		f.Handler = defaultHandler
-	}
-	f.Handler(ctx, res, req)
-}
-
-// DefaultHandler is a Handler implementation which simply warns the user that
-// the default handler instance was not properly initialized.
-var defaultHandler = func(_ context.Context, res http.ResponseWriter, req *http.Request) {
-	log.Warn().Msg("no Handle method found")
-	http.NotFound(res, req)
+func (f DefaultHandler) Handle(w http.ResponseWriter, r *http.Request) {
+	f.Handler(w, r)
 }

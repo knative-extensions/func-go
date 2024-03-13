@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,9 +24,9 @@ func main() {
 }
 
 // Example Static HTTP Handler implementation.
-func Handle(ctx context.Context, res http.ResponseWriter, req *http.Request) {
+func Handle(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Static HTTP handler invoked")
-	res.Write([]byte("Static HTTP handler invoked\n"))
+	fmt.Fprintln(w, "Static HTTP Handler invoked")
 }
 
 // MyFunction is an example instanced HTTP function implementation.
@@ -37,7 +36,7 @@ func New() *MyFunction {
 	return &MyFunction{}
 }
 
-func (f *MyFunction) Handle(_ context.Context, res http.ResponseWriter, req *http.Request) {
+func (f *MyFunction) Handle(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Instanced HTTP handler invoked")
-	res.Write([]byte("Instanced HTTP handler invoked\n"))
+	fmt.Fprintln(w, "Instanced HTTP Handler invoked")
 }
