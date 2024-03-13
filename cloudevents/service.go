@@ -60,7 +60,7 @@ func New(f any) *Service {
 	mux.HandleFunc("/health/readiness", svc.Ready)
 	mux.HandleFunc("/health/liveness", svc.Alive)
 	mux.Handle("/", newCloudeventHandler(f)) // See implementation note
-	svc.Server.Handler = mux
+	svc.Handler = mux
 	return svc
 }
 
@@ -91,7 +91,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	s.handleSignals()
 
 	go func() {
-		if err = s.Server.Serve(s.listener); err != http.ErrServerClosed {
+		if err := s.Serve(s.listener); err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("http server exited with unexpected error")
 			s.stop <- err
 		}

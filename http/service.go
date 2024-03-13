@@ -120,7 +120,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 
 	// Listen and serve
 	go func() {
-		if err = s.Serve(s.listener); err != http.ErrServerClosed {
+		if err := s.Serve(s.listener); err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("http server exited with unexpected error")
 			s.stop <- err
 		}
