@@ -394,3 +394,29 @@ func TestAlive_Invoked(t *testing.T) {
 		t.Fatalf("unexpected http status code: %v", resp.StatusCode)
 	}
 }
+
+// TestHandle_WithContext ensures that the system allows compilation of
+// functions provided with the legacy Handler method signature.
+//
+// This compatibilty layer can be removed once func-go has been integrated
+// into the Buildpack and S2I builders.
+func TestHandle_WithContext(t *testing.T) {
+	// This is the handler with the deprecated method signature:
+	deprecatedHandler := func(_ context.Context, w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintf(w, "OK")
+	}
+
+	// This is how the scaffolding middleware provides a static function
+	// handler to the func-go middleware.  This used to only support
+	// values of type Handler, but has been temporarily loosened to support
+	// both Handler and HandlerWithContext
+	f := DefaultHandler{Handler: deprecatedHandler}
+
+	// If the following fails to compile, it's definitely not working.
+	// The tests in func (which relies on this backwards compatibility)
+	// will do a full test.
+	go func() {
+		_ = Start(f)
+	}()
+	t.Log("legacy static handler signature accepted.  see func tests for confirmation of invocation")
+}
