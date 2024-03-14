@@ -2,10 +2,7 @@ package http
 
 import (
 	"context"
-	"fmt"
 	"net/http"
-
-	"github.com/rs/zerolog/log"
 )
 
 // Handler is a function instance which can handle a request.
@@ -49,19 +46,11 @@ type LivenessReporter interface {
 type DefaultHandler struct {
 	// TODO: Update type HandleFunc when backwards compatibility no
 	// longer needed:
-	Handler any
+	Handler handleFuncDeprecated
 }
 
 func (f DefaultHandler) Handle(w http.ResponseWriter, r *http.Request) {
-	if i, ok := f.Handler.(HandleFunc); ok {
-		i(w, r)
-	} else if i, ok := f.Handler.(handleFuncDeprecated); ok {
-		i(r.Context(), w, r)
-	} else {
-		msg := "function does not implement Handle. Skipping invocation."
-		log.Debug().Msg(msg)
-		fmt.Fprintln(w, msg)
-	}
+	f.Handler(r.Context(), w, r)
 }
 
 type handleFuncDeprecated func(context.Context, http.ResponseWriter, *http.Request)

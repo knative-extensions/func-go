@@ -86,14 +86,6 @@ func logImplements(f any) {
 	if _, ok := f.(LivenessReporter); ok {
 		log.Info().Msg("Function implements Alive")
 	}
-
-	// Warn if using the deprecated static handler:
-	if i, ok := f.(DefaultHandler); ok {
-		log.Info().Msg("Function implements Handle")
-		if _, ok = i.Handler.(handleFuncDeprecated); ok {
-			log.Warn().Msg("The Handle method signature used has been deprecated.  Please remove the context object argument.  Future versions will remove support for this signature.")
-		}
-	}
 }
 
 // Start
