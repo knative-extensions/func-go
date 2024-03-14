@@ -32,7 +32,7 @@ const (
 // Start an intance using a new Service
 // Note that for CloudEvent Handlers this effectively accepts ANY because
 // the actual type of the handler function is determined later.
-func Start(f any) error {
+func Start(f Handler) error {
 	log.Debug().Msg("func runtime creating function instance")
 	return New(f).Start(context.Background())
 }
@@ -42,11 +42,11 @@ type Service struct {
 	http.Server
 	listener net.Listener
 	stop     chan error
-	f        any
+	f        Handler
 }
 
 // New Service which serves the given instance.
-func New(f any) *Service {
+func New(f Handler) *Service {
 	svc := &Service{
 		f:    f,
 		stop: make(chan error),
@@ -62,7 +62,7 @@ func New(f any) *Service {
 	mux.HandleFunc("/health/readiness", svc.Ready)
 	mux.HandleFunc("/health/liveness", svc.Alive)
 	mux.HandleFunc("/", svc.Handle)
-	svc.Server.Handler = mux
+	svc.Handler = mux
 
 	// Print some helpful information about which interfaces the function
 	// is correctly implementing
@@ -74,9 +74,6 @@ func New(f any) *Service {
 // log which interfaces the function implements.
 // This could be more verbose for new users:
 func logImplements(f any) {
-	if _, ok := f.(Handler); ok {
-		log.Info().Msg("Function implements Handle")
-	}
 	if _, ok := f.(Starter); ok {
 		log.Info().Msg("Function implements Start")
 	}
@@ -123,7 +120,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 
 	// Listen and serve
 	go func() {
-		if err = s.Server.Serve(s.listener); err != http.ErrServerClosed {
+		if err := s.Serve(s.listener); err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("http server exited with unexpected error")
 			s.stop <- err
 		}
@@ -180,13 +177,7 @@ func (s *Service) Addr() net.Addr {
 
 // Handle requests for the instance
 func (s *Service) Handle(w http.ResponseWriter, r *http.Request) {
-	if i, ok := s.f.(Handler); ok {
-		i.Handle(r.Context(), w, r)
-	} else {
-		message := "function does not implement Handle. Skipping invocation."
-		log.Debug().Msg(message)
-		_, _ = w.Write([]byte(message))
-	}
+	s.f.Handle(w, r)
 }
 
 // Ready handles readiness checks.
@@ -197,11 +188,11 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 			message := "error checking readiness"
 			log.Debug().Err(err).Msg(message)
 			w.WriteHeader(500)
-			_, _ = w.Write([]byte(message + ". " + err.Error()))
+			fmt.Fprint(w, "error checking readiness: ", err.Error())
 			return
 		}
 		if !ready {
-			message := "function not yet available"
+			message := "function not yet ready"
 			log.Debug().Msg(message)
 			w.WriteHeader(503)
 			fmt.Fprintln(w, message)
@@ -219,11 +210,11 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 			message := "error checking liveness"
 			log.Err(err).Msg(message)
 			w.WriteHeader(500)
-			_, _ = w.Write([]byte(message + ". " + err.Error()))
+			fmt.Fprint(w, "error checking liveness: ", err.Error())
 			return
 		}
 		if !alive {
-			message := "function not ready"
+			message := "function not alive"
 			log.Debug().Msg(message)
 			w.WriteHeader(503)
 			_, _ = w.Write([]byte(message))

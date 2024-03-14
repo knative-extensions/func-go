@@ -257,7 +257,7 @@ func TestHandle_Invoked(t *testing.T) {
 			startCh <- true
 			return nil
 		}
-		onHandle = func(_ context.Context, w http.ResponseWriter, _ *http.Request) {
+		onHandle = func(w http.ResponseWriter, _ *http.Request) {
 			fmt.Fprintf(w, "OK")
 		}
 	)
@@ -358,7 +358,7 @@ func TestAlive_Invoked(t *testing.T) {
 		errCh       = make(chan error)
 		startCh     = make(chan any)
 		timeoutCh   = time.After(500 * time.Millisecond)
-		onStart     = func(_ context.Context, _ map[string]string) error {
+		onStart     = func(context.Context, map[string]string) error {
 			startCh <- true
 			return nil
 		}
