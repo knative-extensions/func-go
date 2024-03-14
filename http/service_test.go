@@ -398,7 +398,7 @@ func TestAlive_Invoked(t *testing.T) {
 // TestHandle_WithContext ensures that the system allows compilation of
 // functions provided with the legacy Handler method signature.
 //
-// This compatibilty layer can be removed once func-go has been integrated
+// This compatibility layer can be removed once func-go has been integrated
 // into the Buildpack and S2I builders.
 func TestHandle_WithContext(t *testing.T) {
 	// This is the handler with the deprecated method signature:
