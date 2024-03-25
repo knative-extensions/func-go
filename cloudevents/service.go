@@ -179,11 +179,11 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 			message := "error checking readiness"
 			log.Debug().Err(err).Msg(message)
 			w.WriteHeader(500)
-			_, _ = w.Write([]byte(message + ". " + err.Error()))
+			fmt.Fprint(w, "error checking readiness: ", err.Error())
 			return
 		}
 		if !ready {
-			message := "function not yet available"
+			message := "function not yet ready"
 			log.Debug().Msg(message)
 			w.WriteHeader(503)
 			fmt.Fprintln(w, message)
@@ -201,11 +201,11 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 			message := "error checking liveness"
 			log.Err(err).Msg(message)
 			w.WriteHeader(500)
-			_, _ = w.Write([]byte(message + ". " + err.Error()))
+			fmt.Fprint(w, "error checking liveness: ", err.Error())
 			return
 		}
 		if !alive {
-			message := "function not ready"
+			message := "function not alive"
 			log.Debug().Msg(message)
 			w.WriteHeader(503)
 			_, _ = w.Write([]byte(message))
