@@ -178,14 +178,14 @@ func (s *Service) Ready(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			message := "error checking readiness"
 			log.Debug().Err(err).Msg(message)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprint(w, "error checking readiness: ", err.Error())
 			return
 		}
 		if !ready {
 			message := "function not yet ready"
 			log.Debug().Msg(message)
-			w.WriteHeader(503)
+			w.WriteHeader(http.StatusServiceUnavailable)
 			fmt.Fprintln(w, message)
 			return
 		}
@@ -200,14 +200,14 @@ func (s *Service) Alive(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			message := "error checking liveness"
 			log.Err(err).Msg(message)
-			w.WriteHeader(500)
+			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprint(w, "error checking liveness: ", err.Error())
 			return
 		}
 		if !alive {
 			message := "function not alive"
 			log.Debug().Msg(message)
-			w.WriteHeader(503)
+			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte(message))
 			return
 		}
