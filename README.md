@@ -1,4 +1,6 @@
 # Go Func Runtime
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fknative-extensions%2Ffunc-go.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fknative-extensions%2Ffunc-go?ref=badge_shield)
+
 
 This repository contains the function invocation and runtime framework for 
 Knative Go functions.
@@ -31,3 +33,7 @@ func deploy
 
 For more information about Knative Go functions, see the
 [Knative Functions documentation](https://knative.dev/docs/functions/).
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fknative-extensions%2Ffunc-go.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fknative-extensions%2Ffunc-go?ref=badge_large)
