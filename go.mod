@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/rs/zerolog v1.32.0
-	knative.dev/hack v0.0.0-20250424013725-c4037b0fe56b
+	knative.dev/hack v0.0.0-20250514121446-f525e187efdc
 )
 
 require (
