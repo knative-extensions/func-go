@@ -21,7 +21,7 @@ import (
 
 const (
 	DefaultLogLevel      = LogDebug
-	DefaultListenAddress = "127.0.0.1:8080"
+	DefaultListenAddress = "[::]:8080"
 )
 
 const (
