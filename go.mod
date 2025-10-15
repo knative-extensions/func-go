@@ -1,11 +1,11 @@
 module knative.dev/func-go
 
-go 1.21
+go 1.24
 
 require (
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/rs/zerolog v1.32.0
-	knative.dev/hack v0.0.0-20251013111017-49bc1be5f373
+	knative.dev/hack v0.0.0-20251015104416-f3f2ddfc1eac
 )
 
 require (
