@@ -52,7 +52,7 @@ type ReadinessReporter interface {
 // LivenessReporter is a function which defines a method to be used to
 // determine liveness.
 type LivenessReporter interface {
-	// Alive allows the instance to report it's liveness status.
+	// Alive allows the instance to report its liveness status.
 	Alive(context.Context) (bool, error)
 }
 
