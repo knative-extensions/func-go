@@ -160,7 +160,7 @@ The middleware automatically detects CloudEvents in Kafka messages:
 
 ## Example
 
-See `cmd/fkafka/main.go` for complete examples of both CloudEvents and raw message handlers.
+See `cmd/fcekafka/main.go` for CloudEvents handler example and `cmd/frawkafka/main.go` for raw message handler example.
 
 ## Testing
 

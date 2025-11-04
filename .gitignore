@@ -1,4 +1,5 @@
 /fce
 /fce-send
 /fhttp
-/fkafka
+/fcekafka
+/frawkafka
