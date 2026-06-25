@@ -1,6 +1,6 @@
 module knative.dev/func-go
 
-go 1.24
+go 1.25.0
 
 require (
 	github.com/cloudevents/sdk-go/v2 v2.15.2
