@@ -1,0 +1,96 @@
+package kafka
+
+import (
+	"context"
+
+	"github.com/cloudevents/sdk-go/v2/event"
+	"github.com/rs/zerolog/log"
+
+	ce "knative.dev/func-go/cloudevents"
+)
+
+// Starter is a function which defines a method to be called on function start.
+type Starter interface {
+	Start(context.Context, map[string]string) error
+}
+
+// Stopper is a function which defines a method to be called on function stop.
+type Stopper interface {
+	Stop(context.Context) error
+}
+
+// ReadinessReporter is a function which defines a method to be used to
+// determine readiness.
+type ReadinessReporter interface {
+	Ready(context.Context) (bool, error)
+}
+
+// LivenessReporter is a function which defines a method to be used to
+// determine liveness.
+type LivenessReporter interface {
+	Alive(context.Context) (bool, error)
+}
+
+var responseEventWarned bool
+
+// invokeHandler calls a CloudEvents handler directly with a constructed event.
+func invokeHandler(f any, ctx context.Context, e event.Event) error {
+	var fn any
+	if dh, ok := f.(ce.DefaultHandler); ok {
+		fn = dh.Handler
+	} else {
+		fn = ce.GetReceiverFn(f)
+	}
+	return invokeHandlerFn(fn, ctx, e)
+}
+
+func invokeHandlerFn(fn any, ctx context.Context, e event.Event) error {
+	switch h := fn.(type) {
+	case func():
+		h()
+		return nil
+	case func() error:
+		return h()
+	case func(context.Context):
+		h(ctx)
+		return nil
+	case func(context.Context) error:
+		return h(ctx)
+	case func(event.Event):
+		h(e)
+		return nil
+	case func(event.Event) error:
+		return h(e)
+	case func(context.Context, event.Event):
+		h(ctx, e)
+		return nil
+	case func(context.Context, event.Event) error:
+		return h(ctx, e)
+	case func(event.Event) *event.Event:
+		resp := h(e)
+		warnResponseEvent(resp)
+		return nil
+	case func(event.Event) (*event.Event, error):
+		resp, err := h(e)
+		warnResponseEvent(resp)
+		return err
+	case func(context.Context, event.Event) *event.Event:
+		resp := h(ctx, e)
+		warnResponseEvent(resp)
+		return nil
+	case func(context.Context, event.Event) (*event.Event, error):
+		resp, err := h(ctx, e)
+		warnResponseEvent(resp)
+		return err
+	default:
+		panic("handler function does not match any supported CloudEvents signature")
+	}
+}
+
+func warnResponseEvent(resp *event.Event) {
+	if resp != nil && !responseEventWarned {
+		responseEventWarned = true
+		log.Warn().Msg("handler returned a response event, but response events are ignored when consuming from Kafka")
+	}
+}
+

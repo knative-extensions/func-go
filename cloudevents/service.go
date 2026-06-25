@@ -160,7 +160,7 @@ func newCloudeventHandler(f any) http.Handler {
 		h = dh.Handler
 	} else {
 		// Instanced Functions implement one of the defined interfaces.
-		h = getReceiverFn(f)
+		h = GetReceiverFn(f)
 	}
 
 	protocol, err := cloudevents.NewHTTP()
