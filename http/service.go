@@ -11,12 +11,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 const (
@@ -45,8 +50,29 @@ type Service struct {
 	f        Handler
 }
 
+var otelOnce sync.Once
+
 // New Service which serves the given instance.
 func New(f Handler) *Service {
+	// Register W3C Trace Context propagator so that trace headers injected
+	// by Knative's queue proxy (traceparent, tracestate) are extracted and
+	// made available in the context.Context passed to the function's Handle.
+	otelOnce.Do(func() {
+		p := otel.GetTextMapPropagator()
+		if reflect.TypeOf(p).String() != "*global.textMapPropagator" {
+			otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{},
+				propagation.Baggage{},
+				p,
+			))
+		} else {
+			otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+				propagation.TraceContext{},
+				propagation.Baggage{},
+			))
+		}
+	})
+
 	svc := &Service{
 		f:    f,
 		stop: make(chan error),
@@ -61,7 +87,9 @@ func New(f Handler) *Service {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health/readiness", svc.Ready)
 	mux.HandleFunc("/health/liveness", svc.Alive)
-	mux.HandleFunc("/", svc.Handle)
+	// Wrap with otelhttp so W3C trace context is extracted from HTTP headers
+	// and propagated into the context before the function handler is called.
+	mux.Handle("/", otelhttp.NewHandler(http.HandlerFunc(svc.Handle), "handle"))
 	svc.Handler = mux
 
 	// Print some helpful information about which interfaces the function

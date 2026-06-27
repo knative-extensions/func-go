@@ -6,11 +6,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/event"
+	"go.opentelemetry.io/otel/trace"
 	"knative.dev/func-go/cloudevents/mock"
 )
 
@@ -145,10 +147,17 @@ func TestCfg_Static(t *testing.T) {
 	defer cancel()
 
 	// Run test from within a temp dir
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
 	dir := t.TempDir()
 	if err := os.Chdir(dir); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() {
+		_ = os.Chdir(wd)
+	})
 
 	// Write an example `cfg` file
 	if err := os.WriteFile("cfg", []byte(`FUNC_VERSION="v1.2.3"`), os.ModePerm); err != nil {
@@ -392,5 +401,84 @@ func TestAlive_Invoked(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("unexpected http status code: %v", resp.StatusCode)
+	}
+}
+
+// TestHandle_OTelTracePropagation ensures that W3C trace context headers
+// injected into the request are correctly parsed and propagated to the
+// context.Context of the function's handle function.
+func TestHandle_OTelTracePropagation(t *testing.T) {
+	t.Setenv("LISTEN_ADDRESS", "127.0.0.1:") // use an OS-chosen port
+
+	var (
+		ctx, cancel = context.WithCancel(context.Background())
+		errCh       = make(chan error)
+		startCh     = make(chan any)
+		timeoutCh   = time.After(500 * time.Millisecond)
+		onStart     = func(_ context.Context, _ map[string]string) error {
+			startCh <- true
+			return nil
+		}
+		traceCheckedCh = make(chan struct{})
+		onHandle       = func(ctx context.Context, event event.Event) (*event.Event, error) {
+			sc := trace.SpanContextFromContext(ctx)
+			if !sc.IsValid() {
+				t.Error("expected a valid span context from propagated trace headers, but got invalid")
+			}
+			if sc.TraceID().String() != "4bf92f3577b34da6a3ce929d0e0e4736" {
+				t.Errorf("expected TraceID '4bf92f3577b34da6a3ce929d0e0e4736', got %v", sc.TraceID().String())
+			}
+			// SpanID is not asserted here because otelhttp may start a new server span
+			// (with a different SpanID) when a tracer provider is configured.
+			close(traceCheckedCh)
+			return nil, nil
+		}
+	)
+	defer cancel()
+
+	f := &mock.Function{OnStart: onStart, OnHandle: onHandle}
+	service := New(f)
+
+	go func() {
+		if err := service.Start(ctx); err != nil {
+			errCh <- err
+		}
+	}()
+
+	select {
+	case <-timeoutCh:
+		t.Fatal("function failed to start")
+	case err := <-errCh:
+		t.Fatal(err)
+	case <-startCh:
+	}
+
+	// Send a request with trace headers
+	req, err := http.NewRequest("POST", "http://"+service.Addr().String(), strings.NewReader(`{"hello":"world"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("ce-specversion", "1.0")
+	req.Header.Set("ce-type", "example.type")
+	req.Header.Set("ce-source", "example/uri")
+	req.Header.Set("ce-id", "a688ed0b")
+	req.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected http status code: %v", resp.StatusCode)
+	}
+
+	select {
+	case <-traceCheckedCh:
+		// Passed trace context validation
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("timed out waiting for trace context check in handle")
 	}
 }
