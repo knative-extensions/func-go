@@ -231,6 +231,7 @@ func readCfg() (map[string]string, error) {
 	cfg := map[string]string{}
 	f, err := os.Open("cfg")
 	if err != nil {
+		log.Debug().Msg("no static config")
 		return cfg, nil
 	}
 	defer f.Close()
