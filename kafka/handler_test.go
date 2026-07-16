@@ -35,7 +35,7 @@ func TestInvokeHandler_AllSignatures(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := invokeHandler(tt.f, context.Background(), e)
+			err := invokeHandler(context.Background(), tt.f, e)
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
@@ -56,7 +56,7 @@ func TestInvokeHandler_DefaultHandler(t *testing.T) {
 	e.SetType("test")
 	e.SetSource("test")
 
-	err := invokeHandler(dh, context.Background(), e)
+	err := invokeHandler(context.Background(), dh, e)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestInvokeHandler_DefaultHandlerPointer(t *testing.T) {
 	e.SetType("test")
 	e.SetSource("test")
 
-	err := invokeHandler(dh, context.Background(), e)
+	err := invokeHandler(context.Background(), dh, e)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestInvokeHandler_ResponseEventIgnored(t *testing.T) {
 	e.SetType("test")
 	e.SetSource("test")
 
-	err := invokeHandler(f, context.Background(), e)
+	err := invokeHandler(context.Background(), f, e)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

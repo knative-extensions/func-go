@@ -144,7 +144,7 @@ func (h *consumerGroupHandler) ConsumeClaim(session sarama.ConsumerGroupSession,
 
 			e := kafkaMessageToEvent(m, h.brokers)
 
-			if err := invokeHandler(h.f, session.Context(), e); err != nil {
+			if err := invokeHandler(session.Context(), h.f, e); err != nil {
 				log.Error().Err(err).
 					Str("topic", msg.Topic).
 					Int32("partition", msg.Partition).

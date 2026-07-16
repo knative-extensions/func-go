@@ -65,7 +65,7 @@ func validateHandler(f any) error {
 }
 
 // invokeHandler calls a CloudEvents handler directly with a constructed event.
-func invokeHandler(f any, ctx context.Context, e event.Event) error {
+func invokeHandler(ctx context.Context, f any, e event.Event) error {
 	var fn any
 	switch dh := f.(type) {
 	case ce.DefaultHandler:
@@ -75,10 +75,10 @@ func invokeHandler(f any, ctx context.Context, e event.Event) error {
 	default:
 		fn = ce.GetReceiverFn(f)
 	}
-	return invokeHandlerFn(fn, ctx, e)
+	return invokeHandlerFn(ctx, fn, e)
 }
 
-func invokeHandlerFn(fn any, ctx context.Context, e event.Event) error {
+func invokeHandlerFn(ctx context.Context, fn any, e event.Event) error {
 	switch h := fn.(type) {
 	case func():
 		h()
