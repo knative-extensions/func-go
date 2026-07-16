@@ -35,7 +35,7 @@ type LivenessReporter interface {
 
 var responseEventOnce sync.Once
 
-func validateHandler(f any) error {
+func validateHandler(f any) (err error) {
 	var fn any
 	switch dh := f.(type) {
 	case ce.DefaultHandler:
@@ -43,7 +43,17 @@ func validateHandler(f any) error {
 	case *ce.DefaultHandler:
 		fn = dh.Handler
 	default:
-		fn = ce.GetReceiverFn(f)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					err = fmt.Errorf("handler function does not match any supported CloudEvents signature")
+				}
+			}()
+			fn = ce.GetReceiverFn(f)
+		}()
+		if err != nil {
+			return
+		}
 	}
 	switch fn.(type) {
 	case func(),

@@ -87,6 +87,14 @@ func TestInvokeHandler_DefaultHandlerPointer(t *testing.T) {
 	}
 }
 
+func TestValidateHandler_InvalidSignature(t *testing.T) {
+	type badHandler struct{}
+	err := validateHandler(&badHandler{})
+	if err == nil {
+		t.Fatal("expected error for handler without Handle method")
+	}
+}
+
 func TestInvokeHandler_ResponseEventIgnored(t *testing.T) {
 	responseEventOnce = sync.Once{}
 
