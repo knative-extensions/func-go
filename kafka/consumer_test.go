@@ -87,6 +87,7 @@ func TestKafkaMessageToEvent_CEPassThrough(t *testing.T) {
 			{Key: "ce_subject", Value: []byte("temp")},
 			{Key: "ce_time", Value: []byte("2025-06-15T12:00:00Z")},
 			{Key: "ce_datacontenttype", Value: []byte("application/json")},
+			{Key: "ce_dataschema", Value: []byte("https://example.com/schema/sensor.json")},
 			{Key: "ce_customext", Value: []byte("custom-value")},
 		},
 		Partition: 1,
@@ -119,6 +120,9 @@ func TestKafkaMessageToEvent_CEPassThrough(t *testing.T) {
 	}
 	if string(e.Data()) != `{"temperature":22}` {
 		t.Errorf("data = %q", string(e.Data()))
+	}
+	if e.DataSchema() != "https://example.com/schema/sensor.json" {
+		t.Errorf("dataschema = %q, want https://example.com/schema/sensor.json", e.DataSchema())
 	}
 	if v, ok := e.Extensions()["customext"]; !ok || v != "custom-value" {
 		t.Errorf("customext = %v", v)

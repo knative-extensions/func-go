@@ -219,6 +219,9 @@ func parseCEFromHeaders(msg Message) (event.Event, bool) {
 			e.SetTime(t)
 		}
 	}
+	if v, ok := headers["ce_dataschema"]; ok {
+		e.SetDataSchema(v)
+	}
 
 	contentType := "application/json"
 	if v, ok := headers["ce_datacontenttype"]; ok {
@@ -231,7 +234,7 @@ func parseCEFromHeaders(msg Message) (event.Event, bool) {
 		if strings.HasPrefix(k, "ce_") {
 			attr := strings.TrimPrefix(k, "ce_")
 			switch attr {
-			case "specversion", "id", "source", "type", "subject", "time", "datacontenttype":
+			case "specversion", "id", "source", "type", "subject", "time", "datacontenttype", "dataschema":
 				continue
 			default:
 				e.SetExtension(attr, v)
