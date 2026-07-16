@@ -150,6 +150,45 @@ func TestKafkaMessageToEvent_CEPassThrough_DefaultContentType(t *testing.T) {
 	}
 }
 
+func TestKafkaMessageToEvent_CEPassThrough_ContentTypeHeader(t *testing.T) {
+	msg := Message{
+		Value: []byte(`<xml/>`),
+		Headers: []Header{
+			{Key: "ce_specversion", Value: []byte("1.0")},
+			{Key: "ce_id", Value: []byte("x")},
+			{Key: "ce_source", Value: []byte("s")},
+			{Key: "ce_type", Value: []byte("t")},
+			{Key: "content-type", Value: []byte("application/xml")},
+		},
+	}
+
+	e := kafkaMessageToEvent(msg, "b:9092")
+
+	if e.DataContentType() != "application/xml" {
+		t.Errorf("content type = %q, want application/xml", e.DataContentType())
+	}
+}
+
+func TestKafkaMessageToEvent_CEPassThrough_CEDataContentTypeOverridesContentType(t *testing.T) {
+	msg := Message{
+		Value: []byte(`{}`),
+		Headers: []Header{
+			{Key: "ce_specversion", Value: []byte("1.0")},
+			{Key: "ce_id", Value: []byte("x")},
+			{Key: "ce_source", Value: []byte("s")},
+			{Key: "ce_type", Value: []byte("t")},
+			{Key: "content-type", Value: []byte("application/xml")},
+			{Key: "ce_datacontenttype", Value: []byte("text/plain")},
+		},
+	}
+
+	e := kafkaMessageToEvent(msg, "b:9092")
+
+	if e.DataContentType() != "text/plain" {
+		t.Errorf("content type = %q, want text/plain (ce_datacontenttype should override content-type)", e.DataContentType())
+	}
+}
+
 func TestKafkaMessageToEvent_NotCE(t *testing.T) {
 	msg := Message{
 		Value: []byte("plain data"),

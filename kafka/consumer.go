@@ -224,6 +224,9 @@ func parseCEFromHeaders(msg Message) (event.Event, bool) {
 	}
 
 	contentType := "application/json"
+	if v, ok := headers["content-type"]; ok {
+		contentType = v
+	}
 	if v, ok := headers["ce_datacontenttype"]; ok {
 		contentType = v
 	}
