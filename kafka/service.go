@@ -34,10 +34,11 @@ func Start(f any) error {
 // the function handler. An HTTP server runs alongside for health probes only.
 type Service struct {
 	http.Server
-	listener net.Listener
-	f        any
-	stop     chan error
-	ready    atomic.Bool
+	listener      net.Listener
+	f             any
+	stop          chan error
+	ready         atomic.Bool
+	cancelConsume context.CancelFunc
 }
 
 // New creates a Service for the given handler.
@@ -86,8 +87,10 @@ func (s *Service) Start(ctx context.Context) (err error) {
 		}
 	}()
 
+	consumerCtx, cancelConsume := context.WithCancel(ctx)
+	s.cancelConsume = cancelConsume
 	go func() {
-		if err := consumeLoop(ctx, s.f, &s.ready); err != nil {
+		if err := consumeLoop(consumerCtx, s.f, &s.ready); err != nil {
 			log.Error().Err(err).Msg("kafka consumer exited with error")
 			s.stop <- err
 		}
@@ -191,6 +194,9 @@ func (s *Service) handleSignals() {
 
 func (s *Service) shutdown(sourceErr error) (err error) {
 	log.Debug().Msg("function stopping")
+	if s.cancelConsume != nil {
+		s.cancelConsume()
+	}
 	var runtimeErr, instanceErr error
 
 	ctx, cancel := context.WithTimeout(context.Background(), ServerShutdownTimeout)
