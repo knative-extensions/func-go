@@ -75,6 +75,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	}
 
 	if err = s.startInstance(ctx); err != nil {
+		s.listener.Close()
 		return
 	}
 
