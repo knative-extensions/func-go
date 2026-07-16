@@ -65,6 +65,28 @@ func TestInvokeHandler_DefaultHandler(t *testing.T) {
 	}
 }
 
+func TestInvokeHandler_DefaultHandlerPointer(t *testing.T) {
+	called := false
+	dh := &ce.DefaultHandler{
+		Handler: func(ctx context.Context, e event.Event) error {
+			called = true
+			return nil
+		},
+	}
+
+	e := event.New()
+	e.SetType("test")
+	e.SetSource("test")
+
+	err := invokeHandler(dh, context.Background(), e)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Fatal("*DefaultHandler's function was not called")
+	}
+}
+
 func TestInvokeHandler_ResponseEventIgnored(t *testing.T) {
 	responseEventOnce = sync.Once{}
 

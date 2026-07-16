@@ -37,9 +37,12 @@ var responseEventOnce sync.Once
 // invokeHandler calls a CloudEvents handler directly with a constructed event.
 func invokeHandler(f any, ctx context.Context, e event.Event) error {
 	var fn any
-	if dh, ok := f.(ce.DefaultHandler); ok {
+	switch dh := f.(type) {
+	case ce.DefaultHandler:
 		fn = dh.Handler
-	} else {
+	case *ce.DefaultHandler:
+		fn = dh.Handler
+	default:
 		fn = ce.GetReceiverFn(f)
 	}
 	return invokeHandlerFn(fn, ctx, e)
