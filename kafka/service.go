@@ -45,7 +45,7 @@ type Service struct {
 func New(f any) *Service {
 	svc := &Service{
 		f:    f,
-		stop: make(chan error),
+		stop: make(chan error, 1),
 		Server: http.Server{
 			ReadTimeout:       30 * time.Second,
 			WriteTimeout:      30 * time.Second,
@@ -83,7 +83,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	go func() {
 		if err := s.Serve(s.listener); err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("http server exited with unexpected error")
-			s.stop <- err
+			s.sendStop(err)
 		}
 	}()
 
@@ -92,7 +92,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 	go func() {
 		if err := consumeLoop(consumerCtx, s.f, &s.ready); err != nil {
 			log.Error().Err(err).Msg("kafka consumer exited with error")
-			s.stop <- err
+			s.sendStop(err)
 		}
 	}()
 
@@ -167,7 +167,7 @@ func (s *Service) startInstance(ctx context.Context) error {
 		}
 		go func() {
 			if err := i.Start(ctx, cfg); err != nil {
-				s.stop <- err
+				s.sendStop(err)
 			}
 		}()
 	} else {
@@ -184,12 +184,19 @@ func (s *Service) handleSignals() {
 			sig := <-sigs
 			if sig == syscall.SIGINT || sig == syscall.SIGTERM {
 				log.Debug().Any("signal", sig).Msg("signal received")
-				s.stop <- nil
+				s.sendStop(nil)
 			} else if runtime.GOOS == "linux" && sig == syscall.Signal(0x17) {
 				// Ignore SIGURG
 			}
 		}
 	}()
+}
+
+func (s *Service) sendStop(err error) {
+	select {
+	case s.stop <- err:
+	default:
+	}
 }
 
 func (s *Service) shutdown(sourceErr error) (err error) {
