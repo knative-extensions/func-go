@@ -1,7 +1,10 @@
 package kafka
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -163,5 +166,98 @@ func TestKafkaMessageToEvent_NotCE(t *testing.T) {
 
 	if e.Type() != "dev.knative.kafka.event" {
 		t.Errorf("non-CE message should get type dev.knative.kafka.event, got %q", e.Type())
+	}
+}
+
+func TestKafkaMessageToEvent_CEPassThrough_MissingAttributes(t *testing.T) {
+	// Message has ce_specversion but is missing ce_id, ce_source, ce_type.
+	// It should still be treated as a CE pass-through (not wrapped), and the
+	// missing required attributes should be empty strings.
+	msg := Message{
+		Value: []byte(`{"data":"value"}`),
+		Topic: "events",
+		Headers: []Header{
+			{Key: "ce_specversion", Value: []byte("1.0")},
+		},
+		Partition: 0,
+		Offset:    10,
+	}
+
+	e := kafkaMessageToEvent(msg, "b:9092")
+
+	// Should be treated as CE pass-through, not the generated wrapper.
+	if e.SpecVersion() != "1.0" {
+		t.Errorf("specversion = %q, want 1.0", e.SpecVersion())
+	}
+	// The wrapper would set type to "dev.knative.kafka.event", so verify it is
+	// empty (CE pass-through with missing ce_type).
+	if e.Type() != "" {
+		t.Errorf("type = %q, want empty string", e.Type())
+	}
+	if e.ID() != "" {
+		t.Errorf("id = %q, want empty string", e.ID())
+	}
+	if e.Source() != "" {
+		t.Errorf("source = %q, want empty string", e.Source())
+	}
+	// Data should still be set.
+	if string(e.Data()) != `{"data":"value"}` {
+		t.Errorf("data = %q", string(e.Data()))
+	}
+}
+
+// dummyHandler is a minimal handler used in consumeLoop tests.
+// consumeLoop fails on env-var validation before it tries to invoke the handler.
+type dummyHandler struct{}
+
+func (h *dummyHandler) Handle() {}
+
+func TestConsumeLoop_MissingEnvVars(t *testing.T) {
+	tests := []struct {
+		name    string
+		envVars map[string]string
+		wantErr string
+	}{
+		{
+			name:    "no KAFKA_BROKERS",
+			envVars: map[string]string{},
+			wantErr: "KAFKA_BROKERS",
+		},
+		{
+			name: "no KAFKA_TOPIC",
+			envVars: map[string]string{
+				"KAFKA_BROKERS": "localhost:9092",
+			},
+			wantErr: "KAFKA_TOPIC",
+		},
+		{
+			name: "no KAFKA_CONSUMER_GROUP",
+			envVars: map[string]string{
+				"KAFKA_BROKERS": "localhost:9092",
+				"KAFKA_TOPIC":   "my-topic",
+			},
+			wantErr: "KAFKA_CONSUMER_GROUP",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Clear all three env vars, then set only what the subtest provides.
+			t.Setenv("KAFKA_BROKERS", "")
+			t.Setenv("KAFKA_TOPIC", "")
+			t.Setenv("KAFKA_CONSUMER_GROUP", "")
+			for k, v := range tt.envVars {
+				t.Setenv(k, v)
+			}
+
+			var ready atomic.Bool
+			err := consumeLoop(context.Background(), &dummyHandler{}, &ready)
+			if err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %q, want it to contain %q", err.Error(), tt.wantErr)
+			}
+		})
 	}
 }
