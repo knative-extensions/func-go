@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/cloudevents/sdk-go/v2/event"
@@ -33,6 +34,35 @@ type LivenessReporter interface {
 }
 
 var responseEventOnce sync.Once
+
+func validateHandler(f any) error {
+	var fn any
+	switch dh := f.(type) {
+	case ce.DefaultHandler:
+		fn = dh.Handler
+	case *ce.DefaultHandler:
+		fn = dh.Handler
+	default:
+		fn = ce.GetReceiverFn(f)
+	}
+	switch fn.(type) {
+	case func(),
+		func() error,
+		func(context.Context),
+		func(context.Context) error,
+		func(event.Event),
+		func(event.Event) error,
+		func(context.Context, event.Event),
+		func(context.Context, event.Event) error,
+		func(event.Event) *event.Event,
+		func(event.Event) (*event.Event, error),
+		func(context.Context, event.Event) *event.Event,
+		func(context.Context, event.Event) (*event.Event, error):
+		return nil
+	default:
+		return fmt.Errorf("handler function does not match any supported CloudEvents signature")
+	}
+}
 
 // invokeHandler calls a CloudEvents handler directly with a constructed event.
 func invokeHandler(f any, ctx context.Context, e event.Event) error {

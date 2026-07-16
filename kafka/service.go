@@ -62,6 +62,10 @@ func New(f any) *Service {
 
 // Start the Kafka consumer and health HTTP server.
 func (s *Service) Start(ctx context.Context) (err error) {
+	if err = validateHandler(s.f); err != nil {
+		return
+	}
+
 	addr := listenAddress()
 	log.Debug().Str("address", addr).Msg("kafka service starting")
 
