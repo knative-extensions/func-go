@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"sync"
 
 	"github.com/cloudevents/sdk-go/v2/event"
 	"github.com/rs/zerolog/log"
@@ -31,7 +32,7 @@ type LivenessReporter interface {
 	Alive(context.Context) (bool, error)
 }
 
-var responseEventWarned bool
+var responseEventOnce sync.Once
 
 // invokeHandler calls a CloudEvents handler directly with a constructed event.
 func invokeHandler(f any, ctx context.Context, e event.Event) error {
@@ -88,9 +89,10 @@ func invokeHandlerFn(fn any, ctx context.Context, e event.Event) error {
 }
 
 func warnResponseEvent(resp *event.Event) {
-	if resp != nil && !responseEventWarned {
-		responseEventWarned = true
-		log.Warn().Msg("handler returned a response event, but response events are ignored when consuming from Kafka")
+	if resp != nil {
+		responseEventOnce.Do(func() {
+			log.Warn().Msg("handler returned a response event, but response events are ignored when consuming from Kafka")
+		})
 	}
 }
 

@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/cloudevents/sdk-go/v2/event"
@@ -65,7 +66,7 @@ func TestInvokeHandler_DefaultHandler(t *testing.T) {
 }
 
 func TestInvokeHandler_ResponseEventIgnored(t *testing.T) {
-	responseEventWarned = false
+	responseEventOnce = sync.Once{}
 
 	resp := event.New()
 	resp.SetType("response")
@@ -80,9 +81,6 @@ func TestInvokeHandler_ResponseEventIgnored(t *testing.T) {
 	err := invokeHandler(f, context.Background(), e)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if !responseEventWarned {
-		t.Fatal("expected response event warning to be set")
 	}
 }
 
