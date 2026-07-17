@@ -65,6 +65,7 @@ func consumeLoop(ctx context.Context, f any, ready *atomic.Bool) error {
 		Msg("connecting to kafka")
 
 	config := sarama.NewConfig()
+	config.Version = sarama.V2_0_0_0
 	config.Consumer.Group.Rebalance.GroupStrategies = []sarama.BalanceStrategy{
 		sarama.NewBalanceStrategyRoundRobin(),
 	}
