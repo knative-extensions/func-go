@@ -141,4 +141,3 @@ func warnResponseEvent(resp *event.Event) {
 		})
 	}
 }
-

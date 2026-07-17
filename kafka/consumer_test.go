@@ -245,11 +245,11 @@ func TestKafkaMessageToEvent_CEPassThrough_MissingAttributes(t *testing.T) {
 	}
 }
 
-// dummyHandler is a minimal handler used in consumeLoop tests.
+// placeholderHandler is a minimal handler used in consumeLoop tests.
 // consumeLoop fails on env-var validation before it tries to invoke the handler.
-type dummyHandler struct{}
+type placeholderHandler struct{}
 
-func (h *dummyHandler) Handle() {}
+func (h *placeholderHandler) Handle() {}
 
 func TestConsumeLoop_MissingEnvVars(t *testing.T) {
 	tests := []struct {
@@ -290,7 +290,7 @@ func TestConsumeLoop_MissingEnvVars(t *testing.T) {
 			}
 
 			var ready atomic.Bool
-			err := consumeLoop(context.Background(), &dummyHandler{}, &ready)
+			err := consumeLoop(context.Background(), &placeholderHandler{}, &ready)
 			if err == nil {
 				t.Fatal("expected error, got nil")
 			}
