@@ -95,6 +95,14 @@ func TestValidateHandler_InvalidSignature(t *testing.T) {
 	}
 }
 
+func TestValidateHandler_NilDefaultHandler(t *testing.T) {
+	dh := ce.DefaultHandler{Handler: nil}
+	err := validateHandler(dh)
+	if err == nil {
+		t.Fatal("expected error for DefaultHandler with nil Handler")
+	}
+}
+
 func TestInvokeHandler_ResponseEventIgnored(t *testing.T) {
 	responseEventOnce = sync.Once{}
 

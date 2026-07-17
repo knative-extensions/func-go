@@ -55,6 +55,9 @@ func validateHandler(f any) (err error) {
 			return
 		}
 	}
+	if fn == nil {
+		return fmt.Errorf("handler function is nil")
+	}
 	switch fn.(type) {
 	case func(),
 		func() error,
