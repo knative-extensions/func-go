@@ -71,6 +71,10 @@ func consumeLoop(ctx context.Context, f any, ready *atomic.Bool) error {
 	}
 	config.Consumer.Offsets.Initial = sarama.OffsetNewest
 
+	if err := configureSecurity(config); err != nil {
+		return fmt.Errorf("configuring kafka security: %w", err)
+	}
+
 	client, err := sarama.NewConsumerGroup(brokers, group, config)
 	if err != nil {
 		return fmt.Errorf("creating consumer group: %w", err)
