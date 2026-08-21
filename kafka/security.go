@@ -110,7 +110,7 @@ func configureSASL(config *sarama.Config) error {
 		return fmt.Errorf("unsupported KAFKA_SASL_MECHANISM: %s (expected PLAIN, SCRAM-SHA-256, or SCRAM-SHA-512)", mechanism)
 	}
 
-	log.Debug().Str("mechanism", mechanism).Str("user", config.Net.SASL.User).Msg("kafka SASL configured")
+	log.Debug().Str("mechanism", mechanism).Msg("kafka SASL configured")
 	return nil
 }
 
