@@ -163,10 +163,30 @@ func TestConfigureSASL_SCRAM512(t *testing.T) {
 
 func TestConfigureSASL_InvalidMechanism(t *testing.T) {
 	t.Setenv("KAFKA_SASL_MECHANISM", "OAUTHBEARER")
+	t.Setenv("KAFKA_SASL_USER", "u")
+	t.Setenv("KAFKA_SASL_PASSWORD", "p")
 	config := sarama.NewConfig()
 	err := configureSASL(config)
 	if err == nil {
 		t.Fatal("expected error for unsupported mechanism")
+	}
+}
+
+func TestConfigureSASL_MissingCredentials(t *testing.T) {
+	t.Setenv("KAFKA_SASL_MECHANISM", "PLAIN")
+
+	t.Setenv("KAFKA_SASL_USER", "")
+	t.Setenv("KAFKA_SASL_PASSWORD", "p")
+	config := sarama.NewConfig()
+	if err := configureSASL(config); err == nil {
+		t.Fatal("expected error when SASL user is empty")
+	}
+
+	t.Setenv("KAFKA_SASL_USER", "u")
+	t.Setenv("KAFKA_SASL_PASSWORD", "")
+	config = sarama.NewConfig()
+	if err := configureSASL(config); err == nil {
+		t.Fatal("expected error when SASL password is empty")
 	}
 }
 

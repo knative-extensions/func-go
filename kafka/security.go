@@ -84,6 +84,9 @@ func configureSASL(config *sarama.Config) error {
 	config.Net.SASL.Enable = true
 	config.Net.SASL.User = os.Getenv("KAFKA_SASL_USER")
 	config.Net.SASL.Password = os.Getenv("KAFKA_SASL_PASSWORD")
+	if config.Net.SASL.User == "" || config.Net.SASL.Password == "" {
+		return fmt.Errorf("KAFKA_SASL_USER and KAFKA_SASL_PASSWORD must both be set when SASL is enabled")
+	}
 
 	mechanism := strings.TrimSpace(os.Getenv("KAFKA_SASL_MECHANISM"))
 	if mechanism == "" {
