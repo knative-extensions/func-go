@@ -122,7 +122,7 @@ type scramClient struct {
 func (c *scramClient) Begin(userName, password, authzID string) error {
 	client, err := scram.HashGeneratorFcn(c.hashGen).NewClient(userName, password, authzID)
 	if err != nil {
-		return err
+		return fmt.Errorf("SCRAM client configuration failed (check KAFKA_SASL_USER and KAFKA_SASL_PASSWORD for invalid characters)")
 	}
 	c.conv = client.NewConversation()
 	return nil
