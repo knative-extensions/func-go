@@ -282,7 +282,9 @@ func TestConfigureTLS_BadCACert(t *testing.T) {
 func TestConfigureTLS_InvalidCAPEM(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "bad-ca.crt")
-	os.WriteFile(path, []byte("not a pem"), 0644)
+	if err := os.WriteFile(path, []byte("not a pem"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	t.Setenv("KAFKA_TLS_CA_CERT", path)
 	t.Setenv("KAFKA_TLS_CLIENT_CERT", "")
@@ -348,7 +350,9 @@ func writeTestCACert(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	if err = pem.Encode(f, &pem.Block{Type: "CERTIFICATE", Bytes: certDER}); err != nil {
+		t.Fatal(err)
+	}
 	f.Close()
 	return path
 }
@@ -357,7 +361,10 @@ func writeTestCerts(t *testing.T) (caPath, certPath, keyPath string) {
 	t.Helper()
 	dir := t.TempDir()
 
-	caKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 	caTmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(1),
 		Subject:               pkix.Name{CommonName: "Test CA"},
@@ -367,15 +374,29 @@ func writeTestCerts(t *testing.T) (caPath, certPath, keyPath string) {
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign,
 	}
-	caDER, _ := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
-	caCert, _ := x509.ParseCertificate(caDER)
+	caDER, err := x509.CreateCertificate(rand.Reader, caTmpl, caTmpl, &caKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	caCert, err := x509.ParseCertificate(caDER)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	caPath = filepath.Join(dir, "ca.crt")
-	caF, _ := os.Create(caPath)
-	pem.Encode(caF, &pem.Block{Type: "CERTIFICATE", Bytes: caDER})
+	caF, err := os.Create(caPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = pem.Encode(caF, &pem.Block{Type: "CERTIFICATE", Bytes: caDER}); err != nil {
+		t.Fatal(err)
+	}
 	caF.Close()
 
-	clientKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	clientKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
 	clientTmpl := &x509.Certificate{
 		SerialNumber: big.NewInt(2),
 		Subject:      pkix.Name{CommonName: "Test Client"},
@@ -383,17 +404,33 @@ func writeTestCerts(t *testing.T) (caPath, certPath, keyPath string) {
 		NotAfter:     time.Now().Add(time.Hour),
 		KeyUsage:     x509.KeyUsageDigitalSignature,
 	}
-	clientDER, _ := x509.CreateCertificate(rand.Reader, clientTmpl, caCert, &clientKey.PublicKey, caKey)
+	clientDER, err := x509.CreateCertificate(rand.Reader, clientTmpl, caCert, &clientKey.PublicKey, caKey)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	certPath = filepath.Join(dir, "client.crt")
-	certF, _ := os.Create(certPath)
-	pem.Encode(certF, &pem.Block{Type: "CERTIFICATE", Bytes: clientDER})
+	certF, err := os.Create(certPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = pem.Encode(certF, &pem.Block{Type: "CERTIFICATE", Bytes: clientDER}); err != nil {
+		t.Fatal(err)
+	}
 	certF.Close()
 
-	keyDER, _ := x509.MarshalECPrivateKey(clientKey)
+	keyDER, err := x509.MarshalECPrivateKey(clientKey)
+	if err != nil {
+		t.Fatal(err)
+	}
 	keyPath = filepath.Join(dir, "client.key")
-	keyF, _ := os.Create(keyPath)
-	pem.Encode(keyF, &pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+	keyF, err := os.Create(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = pem.Encode(keyF, &pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}); err != nil {
+		t.Fatal(err)
+	}
 	keyF.Close()
 
 	return
