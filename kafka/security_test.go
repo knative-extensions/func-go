@@ -223,6 +223,29 @@ func TestConfigureTLS_SkipVerify(t *testing.T) {
 	}
 }
 
+func TestConfigureTLS_MismatchedCertKey(t *testing.T) {
+	caPath := writeTestCACert(t)
+	t.Setenv("KAFKA_TLS_CA_CERT", caPath)
+	t.Setenv("KAFKA_TLS_CLIENT_CERT", "/some/cert.pem")
+	t.Setenv("KAFKA_TLS_CLIENT_KEY", "")
+	t.Setenv("KAFKA_TLS_SKIP_VERIFY", "")
+
+	config := sarama.NewConfig()
+	err := configureTLS(config)
+	if err == nil {
+		t.Fatal("expected error when only client cert is set without key")
+	}
+
+	t.Setenv("KAFKA_TLS_CLIENT_CERT", "")
+	t.Setenv("KAFKA_TLS_CLIENT_KEY", "/some/key.pem")
+
+	config = sarama.NewConfig()
+	err = configureTLS(config)
+	if err == nil {
+		t.Fatal("expected error when only client key is set without cert")
+	}
+}
+
 func TestConfigureTLS_BadCACert(t *testing.T) {
 	t.Setenv("KAFKA_TLS_CA_CERT", "/nonexistent/ca.crt")
 	t.Setenv("KAFKA_TLS_CLIENT_CERT", "")

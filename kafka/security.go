@@ -58,6 +58,9 @@ func configureTLS(config *sarama.Config) error {
 
 	clientCert := os.Getenv("KAFKA_TLS_CLIENT_CERT")
 	clientKey := os.Getenv("KAFKA_TLS_CLIENT_KEY")
+	if (clientCert != "") != (clientKey != "") {
+		return fmt.Errorf("both KAFKA_TLS_CLIENT_CERT and KAFKA_TLS_CLIENT_KEY must be set for mutual TLS (got cert=%q, key=%q)", clientCert, clientKey)
+	}
 	if clientCert != "" && clientKey != "" {
 		cert, err := tls.LoadX509KeyPair(clientCert, clientKey)
 		if err != nil {
