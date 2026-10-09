@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/rs/zerolog/log"
 )
 
@@ -163,12 +162,12 @@ func newCloudeventHandler(f any) http.Handler {
 		h = GetReceiverFn(f)
 	}
 
-	protocol, err := cloudevents.NewHTTP()
+	// Dispatch through a plain, concurrent handler rather than the CloudEvents
+	// SDK's channel-based receiver, which stalls under concurrent request
+	// cancellation. See ceHandler for the full rationale.
+	r, err := newReceiverFn(h)
 	panicOn(err)
-	ctx := context.Background() // ctx is not used by NewHTTPReceiveHandler
-	cloudeventReceiver, err := cloudevents.NewHTTPReceiveHandler(ctx, protocol, h)
-	panicOn(err)
-	return cloudeventReceiver
+	return &ceHandler{fn: r}
 }
 
 // Ready handles readiness checks.
