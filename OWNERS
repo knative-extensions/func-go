@@ -1,7 +1,6 @@
 approvers:
-- lance
+- function-runtime-approvers
+- steering-committee
 - lkingland
 - matejvasek
 - matzew
-- salaboy
-- zroubalik
