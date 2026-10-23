@@ -133,5 +133,5 @@ gopkg.in/yaml.v2 v2.2.2/go.mod h1:hI93XBmqTisBFMUTm0b8Fm+jr3Dg1NNxqwp+5A1VGuI=
 gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.1 h1:fxVm/GzAzEWqLHuvctI91KS9hhNmmWOoWu0XTYJS7CA=
 gopkg.in/yaml.v3 v3.0.1/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
-knative.dev/hack v0.0.0-20261021112836-4b87852b7bf9 h1:uaPRs09Sa6A48PBeBEx5YhL3EIYmvKh92r3iJLAgUrM=
-knative.dev/hack v0.0.0-20261021112836-4b87852b7bf9/go.mod h1:L5RzHgbvam0u8QFHfzCX6MKxu/a/gIGEdaRBqNiVbl0=
+knative.dev/hack v0.0.0-20261023132104-4a15c76c8f70 h1:ID5j7e0qb9baa6XqzSq/ooRJtQ+tOL6aw5XfyRT+/+w=
+knative.dev/hack v0.0.0-20261023132104-4a15c76c8f70/go.mod h1:L5RzHgbvam0u8QFHfzCX6MKxu/a/gIGEdaRBqNiVbl0=
