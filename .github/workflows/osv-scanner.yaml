@@ -1,0 +1,26 @@
+# Fails a pull request that adds a dependency version that OSV.dev lists an
+# advisory for, such as a malicious release or a vulnerability that our Go
+# code calls. A new Go vulnerability in code that we do not call does not
+# fail it: OSV-Scanner checks which functions the code reaches. Advisories
+# the base branch already has do not fail it either. Prow merges only once
+# all checks pass, so this also stops such a Dependabot update.
+name: OSV-Scanner
+
+on:
+  pull_request:
+    branches: [ 'main', 'release-*' ]
+
+permissions: {}
+
+jobs:
+  scan:
+    # The reusable workflow asks for these, even with upload-sarif off.
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
+    with:
+      # Results show as pull request annotations and in the job's artifacts.
+      # We do not want code scanning alerts.
+      upload-sarif: false
