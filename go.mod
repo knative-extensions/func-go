@@ -7,7 +7,7 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.15.2
 	github.com/rs/zerolog v1.32.0
 	github.com/xdg-go/scram v1.2.0
-	knative.dev/hack v0.0.0-20261106011541-9aee2b079953
+	knative.dev/hack v0.0.0-20261118025754-120c8f556283
 )
 
 require (
