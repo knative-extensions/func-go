@@ -140,7 +140,7 @@ func (s *Service) Start(ctx context.Context) (err error) {
 }
 
 func listenAddress() string {
-	// If they are using the corret LISTEN_ADRESS, use this immediately
+	// If they are using the corret LISTEN_ADDRESS, use this immediately
 	listenAddress := os.Getenv("LISTEN_ADDRESS")
 	if listenAddress != "" {
 		return listenAddress
@@ -303,7 +303,7 @@ func newCfg() (cfg map[string]string, err error) {
 
 // shutdown is invoked when the stop channel receives a message and attempts to
 // gracefully cease execution.
-// Passed in is the message received on the stop channel, wich is either an
+// Passed in is the message received on the stop channel, which is either an
 // error in the case of a runtime error, or nil in the case of a context
 // cancellation or sigint/sigkill.
 func (s *Service) shutdown(sourceErr error) (err error) {
