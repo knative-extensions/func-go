@@ -1,0 +1,43 @@
+# Dependabot proposes a release only once it is 7 days old, so a bad or
+# compromised release has time to be pulled or flagged first. Security
+# updates skip the wait.
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    assignees:
+      - "gauron99"
+    cooldown:
+      default-days: 7
+    allow:
+      - dependency-type: "all"
+    ignore:
+      - dependency-name: "knative.dev/*"
+    groups:
+      # Security updates: one pull request for all patch and minor fixes.
+      go-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      # Version updates: one pull request for all patch and minor bumps.
+      go:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  # Actions used in the workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    assignees:
+      - "gauron99"
+    cooldown:
+      default-days: 7
+    ignore:
+      - dependency-name: "knative/actions/*"
+    groups:
+      github-actions:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
